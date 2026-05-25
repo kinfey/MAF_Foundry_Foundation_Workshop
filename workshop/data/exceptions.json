@@ -1,0 +1,34 @@
+[
+  {
+    "order_id": "ORD-20260525-009",
+    "customer_id": "VIP_002",
+    "reason": "OUT_OF_STOCK",
+    "detail": "SKU-6190 at LON-02 is 0 on-hand; nearest stock is SEA-01 (33 on-hand).",
+    "severity": "high",
+    "opened_at": "2026-05-25T01:07:00Z"
+  },
+  {
+    "order_id": "ORD-20260522-401",
+    "customer_id": "VIP_001",
+    "reason": "DAMAGED_IN_TRANSIT",
+    "detail": "1 of 2 terracotta pots chipped during last-mile handoff in Berlin.",
+    "severity": "medium",
+    "opened_at": "2026-05-23T16:40:00Z"
+  },
+  {
+    "order_id": "ORD-20260514-066-LINK",
+    "customer_id": null,
+    "reason": "PO_DELAYED",
+    "detail": "PO-20260514-066 from Cleveland Tools slipped 6 days; backorders 12 customer orders for SKU-6190.",
+    "severity": "high",
+    "opened_at": "2026-05-24T11:22:00Z"
+  },
+  {
+    "order_id": "ORD-20260524-002",
+    "customer_id": "VIP_003",
+    "reason": "AMOUNT_OVER_THRESHOLD",
+    "detail": "Order total $1,500 USD requires supervisor approval per fulfillment policy.",
+    "severity": "low",
+    "opened_at": "2026-05-24T23:43:00Z"
+  }
+]

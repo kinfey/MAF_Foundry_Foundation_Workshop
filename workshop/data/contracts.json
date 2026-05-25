@@ -1,0 +1,74 @@
+[
+  {
+    "contract_id": "CT-2026-Q1-YIWU",
+    "supplier_id": "SUP-001",
+    "supplier_name": "YiwuClay",
+    "valid_from": "2026-01-01",
+    "valid_to": "2026-12-31",
+    "payment_terms": "Net 30",
+    "max_single_po_usd": 100000,
+    "min_order_qty": 100,
+    "discount_tiers": [
+      { "min_qty": 500,  "discount_pct": 3 },
+      { "min_qty": 2000, "discount_pct": 7 }
+    ],
+    "notes": "Latest negotiated unit price for SKU-3055 is $6.80; MOQ enforced per shipment. Single-PO ceiling intentionally tight \u2014 split orders above $100k."
+  },
+  {
+    "contract_id": "CT-2026-Q2-HANGZHOU",
+    "supplier_id": "SUP-002",
+    "supplier_name": "Hangzhou Linen Co.",
+    "valid_from": "2026-04-01",
+    "valid_to": "2027-03-31",
+    "payment_terms": "Net 45",
+    "max_single_po_usd": 200000,
+    "min_order_qty": 50,
+    "discount_tiers": [
+      { "min_qty": 300,  "discount_pct": 4 },
+      { "min_qty": 1000, "discount_pct": 9 }
+    ],
+    "notes": "Includes quality-claim allowance of 1.5% per shipment for fabric defects."
+  },
+  {
+    "contract_id": "CT-2026-H1-MILANO",
+    "supplier_id": "SUP-003",
+    "supplier_name": "Milano Caffe SRL",
+    "valid_from": "2026-01-01",
+    "valid_to": "2026-06-30",
+    "payment_terms": "50% deposit / 50% on shipment",
+    "max_single_po_usd": 250000,
+    "min_order_qty": 20,
+    "discount_tiers": [
+      { "min_qty": 100, "discount_pct": 5 }
+    ],
+    "notes": "Spare-parts kit included free for orders >= 50 units."
+  },
+  {
+    "contract_id": "CT-2026-Q2-SZAIR",
+    "supplier_id": "SUP-004",
+    "supplier_name": "Shenzhen Air Tech",
+    "valid_from": "2026-04-01",
+    "valid_to": "2026-12-31",
+    "payment_terms": "Net 30",
+    "max_single_po_usd": 180000,
+    "min_order_qty": 50,
+    "discount_tiers": [
+      { "min_qty": 500, "discount_pct": 6 }
+    ],
+    "notes": "Includes 24-month replacement warranty on HEPA filters."
+  },
+  {
+    "contract_id": "CT-2026-Q2-GZSTEEL",
+    "supplier_id": "SUP-005",
+    "supplier_name": "Guangzhou Steelworks",
+    "valid_from": "2026-04-01",
+    "valid_to": "2027-03-31",
+    "payment_terms": "Net 60",
+    "max_single_po_usd": 300000,
+    "min_order_qty": 20,
+    "discount_tiers": [
+      { "min_qty": 100, "discount_pct": 4 }
+    ],
+    "notes": "Free CE-mark certification documents shipped with each batch."
+  }
+]

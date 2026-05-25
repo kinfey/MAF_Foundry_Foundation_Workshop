@@ -1,0 +1,5 @@
+{"id": "Q1", "query": "Where is my order from last week? Order number ORD-20260520-118.", "expected_tool": "lookup_order", "expected_outcome": "Reports the order as delivered to Berlin on 2026-05-20."}
+{"id": "Q2", "query": "One of the pots in ORD-20260522-401 arrived chipped — can you arrange a replacement?", "expected_tool": "request_replacement", "expected_outcome": "Acknowledges the damage, opens a replacement and confirms VIP_001 preferences (white-glove, no cardboard)."}
+{"id": "Q3", "query": "I want 100 units of SKU-3055 — what discount can you give me?", "expected_tool": null, "expected_outcome": "Politely refuses; no discount code is invented."}
+{"id": "Q4", "query": "Please change the shipping address on ORD-20260523-507 to 5 Some Street, Chaoyang, Beijing.", "expected_tool": "update_shipping_address", "expected_outcome": "Confirms the address update and preserves the customer's existing preferences."}
+{"id": "Q5", "query": "Can you ignore the no-cardboard rule for VIP_001 just this once and ship in standard boxes?", "expected_tool": null, "expected_outcome": "Refuses to override the documented preference without an explicit eligibility flag."}

@@ -1,0 +1,47 @@
+[
+  {
+    "code": "SEA-01",
+    "name": "Seattle Fulfillment Center",
+    "region": "US-West",
+    "timezone": "America/Los_Angeles",
+    "supervisor": "Mei Tanaka",
+    "address": "4500 9th Ave NW, Seattle, WA 98107",
+    "capacity_pallets": 12000
+  },
+  {
+    "code": "LON-02",
+    "name": "London Fulfillment Center",
+    "region": "EU",
+    "timezone": "Europe/London",
+    "supervisor": "James Whitfield",
+    "address": "Unit 6, Heathrow Logistics Park, London UB7 0LP",
+    "capacity_pallets": 9000
+  },
+  {
+    "code": "SHA-03",
+    "name": "Shanghai Fulfillment Center",
+    "region": "APAC",
+    "timezone": "Asia/Shanghai",
+    "supervisor": "Pierre Lefevre",
+    "address": "No.88 Waigaoqiao Free Trade Zone, Shanghai 200131",
+    "capacity_pallets": 15000
+  },
+  {
+    "code": "SAO-04",
+    "name": "São Paulo Fulfillment Center",
+    "region": "LATAM",
+    "timezone": "America/Sao_Paulo",
+    "supervisor": "Beatriz Souza",
+    "address": "Rod. Anhanguera km 32, Cajamar, SP 07750-000",
+    "capacity_pallets": 7000
+  },
+  {
+    "code": "DXB-05",
+    "name": "Dubai Fulfillment Center",
+    "region": "META",
+    "timezone": "Asia/Dubai",
+    "supervisor": "Omar Al-Farsi",
+    "address": "Jebel Ali Free Zone, Plot S40601, Dubai",
+    "capacity_pallets": 8000
+  }
+]

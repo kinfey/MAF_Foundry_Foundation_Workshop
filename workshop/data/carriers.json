@@ -1,0 +1,42 @@
+[
+  {
+    "carrier_id": "FEDEX",
+    "name": "FedEx Priority",
+    "lanes": ["US-domestic", "US-EU", "US-APAC"],
+    "base_usd": 12.0,
+    "per_kg_usd": 4.5,
+    "transit_days_typical": 2
+  },
+  {
+    "carrier_id": "DHL",
+    "name": "DHL Express Worldwide",
+    "lanes": ["EU-domestic", "EU-APAC", "EU-META", "US-EU"],
+    "base_usd": 14.0,
+    "per_kg_usd": 5.1,
+    "transit_days_typical": 3
+  },
+  {
+    "carrier_id": "USPS",
+    "name": "USPS Ground Advantage",
+    "lanes": ["US-domestic"],
+    "base_usd": 6.5,
+    "per_kg_usd": 2.2,
+    "transit_days_typical": 5
+  },
+  {
+    "carrier_id": "ARAMEX",
+    "name": "Aramex META Express",
+    "lanes": ["META-domestic", "META-APAC", "META-EU"],
+    "base_usd": 10.0,
+    "per_kg_usd": 3.6,
+    "transit_days_typical": 4
+  },
+  {
+    "carrier_id": "SFEXPRESS",
+    "name": "SF Express",
+    "lanes": ["APAC-domestic", "APAC-EU", "APAC-US"],
+    "base_usd": 8.0,
+    "per_kg_usd": 3.0,
+    "transit_days_typical": 4
+  }
+]

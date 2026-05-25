@@ -1,0 +1,74 @@
+[
+  {
+    "po_number": "PO-20260518-001",
+    "sku": "SKU-7421",
+    "qty": 800,
+    "supplier_id": "SUP-002",
+    "supplier_name": "Hangzhou Linen Co.",
+    "destination_warehouse": "SEA-01",
+    "status": "in_transit",
+    "eta": "2026-05-26",
+    "last_event": "Departed POL Ningbo on vessel COSCO-1142",
+    "unit_price_usd": 38.5
+  },
+  {
+    "po_number": "PO-20260519-007",
+    "sku": "SKU-3055",
+    "qty": 2400,
+    "supplier_id": "SUP-001",
+    "supplier_name": "YiwuClay",
+    "destination_warehouse": "SEA-01",
+    "status": "customs_clearing",
+    "eta": "2026-05-27",
+    "last_event": "Held at Seattle CBP for routine inspection",
+    "unit_price_usd": 6.8
+  },
+  {
+    "po_number": "PO-20260520-014",
+    "sku": "SKU-8842",
+    "qty": 120,
+    "supplier_id": "SUP-003",
+    "supplier_name": "Milano Caffe SRL",
+    "destination_warehouse": "LON-02",
+    "status": "confirmed",
+    "eta": "2026-06-02",
+    "last_event": "Production scheduled, ex-works 2026-05-28",
+    "unit_price_usd": 215.0
+  },
+  {
+    "po_number": "PO-20260516-099",
+    "sku": "SKU-9021",
+    "qty": 300,
+    "supplier_id": "SUP-004",
+    "supplier_name": "Shenzhen Air Tech",
+    "destination_warehouse": "SEA-01",
+    "status": "delivered",
+    "eta": "2026-05-22",
+    "last_event": "Received at SEA-01 dock 7, putaway complete",
+    "unit_price_usd": 112.0
+  },
+  {
+    "po_number": "PO-20260521-021",
+    "sku": "SKU-2256",
+    "qty": 60,
+    "supplier_id": "SUP-005",
+    "supplier_name": "Guangzhou Steelworks",
+    "destination_warehouse": "DXB-05",
+    "status": "production",
+    "eta": "2026-06-10",
+    "last_event": "Awaiting raw stainless coil delivery",
+    "unit_price_usd": 318.0
+  },
+  {
+    "po_number": "PO-20260514-066",
+    "sku": "SKU-6190",
+    "qty": 400,
+    "supplier_id": "SUP-008",
+    "supplier_name": "Cleveland Tools",
+    "destination_warehouse": "LON-02",
+    "status": "delayed",
+    "eta": "2026-06-08",
+    "last_event": "Vessel rerouted due to North Sea storm; ETA slipped 6 days",
+    "unit_price_usd": 88.0
+  }
+]

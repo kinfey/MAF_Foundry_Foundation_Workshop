@@ -1,0 +1,67 @@
+[
+  {
+    "order_id": "ORD-20260520-118",
+    "customer_id": "VIP_001",
+    "lines": [{ "sku": "SKU-7421", "qty": 1, "unit_price_usd": 89.0 }],
+    "ship_to_city": "Berlin",
+    "ship_to_warehouse": "LON-02",
+    "status": "delivered",
+    "total_usd": 89.0,
+    "created_at": "2026-05-20T08:14:00Z"
+  },
+  {
+    "order_id": "ORD-20260522-401",
+    "customer_id": "VIP_001",
+    "lines": [{ "sku": "SKU-3055", "qty": 2, "unit_price_usd": 18.5 }],
+    "ship_to_city": "Berlin",
+    "ship_to_warehouse": "LON-02",
+    "status": "in_transit",
+    "total_usd": 37.0,
+    "created_at": "2026-05-22T10:02:00Z",
+    "incident": "One pot arrived chipped during last-mile handoff"
+  },
+  {
+    "order_id": "ORD-20260523-507",
+    "customer_id": "STD_445",
+    "lines": [{ "sku": "SKU-1188", "qty": 1, "unit_price_usd": 329.0 }],
+    "ship_to_city": "Shanghai",
+    "ship_to_warehouse": "SHA-03",
+    "status": "processing",
+    "total_usd": 329.0,
+    "created_at": "2026-05-23T03:48:00Z"
+  },
+  {
+    "order_id": "ORD-20260524-001",
+    "customer_id": "STD_445",
+    "lines": [
+      { "sku": "SKU-3055", "qty": 1, "unit_price_usd": 18.5 },
+      { "sku": "SKU-7421", "qty": 2, "unit_price_usd": 89.0 }
+    ],
+    "ship_to_city": "Seattle",
+    "ship_to_warehouse": "SEA-01",
+    "status": "new",
+    "total_usd": 196.5,
+    "created_at": "2026-05-24T22:10:00Z"
+  },
+  {
+    "order_id": "ORD-20260524-002",
+    "customer_id": "VIP_003",
+    "lines": [{ "sku": "SKU-3055", "qty": 50, "unit_price_usd": 18.5 }],
+    "ship_to_city": "Boston",
+    "ship_to_warehouse": "SEA-01",
+    "status": "new",
+    "total_usd": 1500.0,
+    "created_at": "2026-05-24T23:42:00Z"
+  },
+  {
+    "order_id": "ORD-20260525-009",
+    "customer_id": "VIP_002",
+    "lines": [{ "sku": "SKU-6190", "qty": 1, "unit_price_usd": 169.0 }],
+    "ship_to_city": "London",
+    "ship_to_warehouse": "LON-02",
+    "status": "exception",
+    "total_usd": 169.0,
+    "created_at": "2026-05-25T01:05:00Z",
+    "exception_reason": "OUT_OF_STOCK at LON-02"
+  }
+]

@@ -1,0 +1,82 @@
+[
+  {
+    "sku": "SKU-7421",
+    "name": "Nordic Linen Duvet Set Queen",
+    "category": "home_goods",
+    "unit_price_usd": 89.0,
+    "weight_kg": 2.3,
+    "hazmat": false
+  },
+  {
+    "sku": "SKU-3055",
+    "name": "Terracotta Garden Pot 12 inch",
+    "category": "garden_outdoor",
+    "unit_price_usd": 18.5,
+    "weight_kg": 4.8,
+    "hazmat": false
+  },
+  {
+    "sku": "SKU-8842",
+    "name": "Italian Espresso Machine Pro",
+    "category": "small_appliance",
+    "unit_price_usd": 459.0,
+    "weight_kg": 9.2,
+    "hazmat": false
+  },
+  {
+    "sku": "SKU-5310",
+    "name": "Memory Foam Pillow 2-Pack",
+    "category": "home_goods",
+    "unit_price_usd": 42.0,
+    "weight_kg": 1.6,
+    "hazmat": false
+  },
+  {
+    "sku": "SKU-6190",
+    "name": "Cordless Hedge Trimmer 40V",
+    "category": "garden_outdoor",
+    "unit_price_usd": 169.0,
+    "weight_kg": 3.4,
+    "hazmat": true
+  },
+  {
+    "sku": "SKU-9021",
+    "name": "HEPA Air Purifier H13",
+    "category": "small_appliance",
+    "unit_price_usd": 249.0,
+    "weight_kg": 6.1,
+    "hazmat": false
+  },
+  {
+    "sku": "SKU-4477",
+    "name": "Cotton Bath Towel Set (6 pcs)",
+    "category": "home_goods",
+    "unit_price_usd": 55.0,
+    "weight_kg": 2.1,
+    "hazmat": false
+  },
+  {
+    "sku": "SKU-2256",
+    "name": "Stainless BBQ Grill 4-Burner",
+    "category": "garden_outdoor",
+    "unit_price_usd": 599.0,
+    "weight_kg": 38.0,
+    "hazmat": true
+  },
+  {
+    "sku": "SKU-1188",
+    "name": "Robotic Vacuum L600",
+    "category": "small_appliance",
+    "unit_price_usd": 329.0,
+    "weight_kg": 3.9,
+    "hazmat": false
+  },
+  {
+    "sku": "SKU-3309",
+    "name": "Smart Bedside Lamp",
+    "category": "home_goods",
+    "unit_price_usd": 64.0,
+    "weight_kg": 1.2,
+    "hazmat": false
+  }
+]

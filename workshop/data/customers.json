@@ -1,0 +1,58 @@
+[
+  {
+    "customer_id": "VIP_001",
+    "name": "Sofia Mueller",
+    "tier": "vip",
+    "city": "Berlin",
+    "country": "Germany",
+    "preferences": {
+      "delivery": "white-glove, hand-delivered to apartment door",
+      "packaging": "no cardboard, use reusable fabric wrap",
+      "materials_to_avoid": ["nickel alloy"],
+      "time_window": "weekday mornings 09:00-11:00"
+    },
+    "language": "de"
+  },
+  {
+    "customer_id": "VIP_002",
+    "name": "Hiroshi Tanaka",
+    "tier": "vip",
+    "city": "Osaka",
+    "country": "Japan",
+    "preferences": {
+      "delivery": "quiet delivery, do not ring doorbell",
+      "packaging": "fragrance-free, no plastic film",
+      "materials_to_avoid": [],
+      "time_window": "weekday afternoons 14:00-17:00"
+    },
+    "language": "ja"
+  },
+  {
+    "customer_id": "VIP_003",
+    "name": "Aisha Mohammed",
+    "tier": "vip",
+    "city": "Dubai",
+    "country": "UAE",
+    "preferences": {
+      "delivery": "leave with concierge at building lobby",
+      "packaging": "halal-certified shipping materials only",
+      "materials_to_avoid": ["leather"],
+      "time_window": "Sunday-Thursday, anytime"
+    },
+    "language": "ar"
+  },
+  {
+    "customer_id": "STD_445",
+    "name": "Liu Wei",
+    "tier": "standard",
+    "city": "Shanghai",
+    "country": "China",
+    "preferences": {
+      "delivery": "ground floor pickup locker",
+      "packaging": "standard",
+      "materials_to_avoid": [],
+      "time_window": "anytime"
+    },
+    "language": "zh"
+  }
+]

@@ -1,0 +1,82 @@
+[
+  {
+    "supplier_id": "SUP-001",
+    "name": "YiwuClay",
+    "country": "China",
+    "city": "Yiwu",
+    "specialties": ["terracotta_pots", "ceramic_planters"],
+    "primary_contact": "Wei Zhang",
+    "email": "wei.zhang@yiwuclay.example.com",
+    "preferred_incoterm": "FOB Ningbo"
+  },
+  {
+    "supplier_id": "SUP-002",
+    "name": "Hangzhou Linen Co.",
+    "country": "China",
+    "city": "Hangzhou",
+    "specialties": ["bedding", "linen"],
+    "primary_contact": "Lin Chen",
+    "email": "lin.chen@hzlinen.example.com",
+    "preferred_incoterm": "FOB Ningbo"
+  },
+  {
+    "supplier_id": "SUP-003",
+    "name": "Milano Caffe SRL",
+    "country": "Italy",
+    "city": "Milan",
+    "specialties": ["espresso_machine", "grinder"],
+    "primary_contact": "Giulia Rossi",
+    "email": "giulia@milanocaffe.example.com",
+    "preferred_incoterm": "DAP London"
+  },
+  {
+    "supplier_id": "SUP-004",
+    "name": "Shenzhen Air Tech",
+    "country": "China",
+    "city": "Shenzhen",
+    "specialties": ["air_purifier", "humidifier"],
+    "primary_contact": "Kevin Huang",
+    "email": "kevin.huang@szairtech.example.com",
+    "preferred_incoterm": "FOB Yantian"
+  },
+  {
+    "supplier_id": "SUP-005",
+    "name": "Guangzhou Steelworks",
+    "country": "China",
+    "city": "Guangzhou",
+    "specialties": ["bbq_grill", "outdoor_metalwork"],
+    "primary_contact": "Hong Li",
+    "email": "hong.li@gzsteel.example.com",
+    "preferred_incoterm": "FOB Shekou"
+  },
+  {
+    "supplier_id": "SUP-006",
+    "name": "Osaka Smart Living",
+    "country": "Japan",
+    "city": "Osaka",
+    "specialties": ["robotic_vacuum", "smart_home"],
+    "primary_contact": "Hiroshi Mori",
+    "email": "h.mori@osakasmart.example.com",
+    "preferred_incoterm": "FOB Osaka"
+  },
+  {
+    "supplier_id": "SUP-007",
+    "name": "Lyon Lumiere",
+    "country": "France",
+    "city": "Lyon",
+    "specialties": ["lighting", "smart_lamp"],
+    "primary_contact": "Camille Dubois",
+    "email": "camille@lyonlumiere.example.com",
+    "preferred_incoterm": "DAP London"
+  },
+  {
+    "supplier_id": "SUP-008",
+    "name": "Cleveland Tools",
+    "country": "USA",
+    "city": "Cleveland",
+    "specialties": ["garden_tools", "power_tools"],
+    "primary_contact": "Mark Reilly",
+    "email": "m.reilly@clevelandtools.example.com",
+    "preferred_incoterm": "FOB New York"
+  }
+]
