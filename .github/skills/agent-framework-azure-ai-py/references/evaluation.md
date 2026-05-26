@@ -378,7 +378,19 @@ agent = Agent(client=agent_client, instructions=system_instruction)
 | "Audit multi-turn behaviour" | `EvalItem(conversation=..., tools=...) ` + `ConversationSplit.FULL` / `per_turn_items` |
 | "Audit a workflow of multiple agents" | `evaluate_workflow(workflow=..., queries=..., evaluators=...)` |
 | "Stress-test safety / jailbreaks" | `RedTeam.scan(target=agent_callback, attack_strategies=[...])` |
+| "Score a .NET / remote agent" | Expose `POST /chat`, call it from Python when `AGUI_SERVER_URL` is set, wrap user/assistant turns as `EvalItem([...])`, then submit to `FoundryEvals.evaluate(...)`; use the same callback for `RedTeam.scan(...)` |
 | "Improve a response automatically with a judge" | Self-reflection loop with `FoundryEvals.evaluate([EvalItem(...)])` |
+
+### Remote .NET / HTTP Agent Pattern
+
+When the agent under test is implemented in .NET, the eval/red-team SDK calls still run in Python. Expose the C# `AIAgent` through a deterministic JSON endpoint, for example `POST /chat` with `{ "message": "..." }` returning `{ "text": "..." }`. The C# endpoint should catch model exceptions and content-filter exceptions and return a safe refusal instead of HTTP 500, because red-team prompts intentionally probe unsafe regions.
+
+The Python harness then does two things:
+
+- For quality eval, call `/chat` for each query, build `EvalItem([Message(role="user", ...), Message(role="assistant", ...)])`, and submit those items through `FoundryEvals.evaluate(...)` to get a `report_url`. Tool-call accuracy can only be evaluated directly when the Python agent/tool telemetry is available; for a text-only remote bridge, assert refusal/action outcomes explicitly (for example Q3/Q5 in ZavaShop).
+- For red-team, pass an async callback to `RedTeam.scan(...)` that extracts the latest user prompt, calls `/chat`, and returns `{"messages": [{"role": "assistant", "content": reply}]}`.
+
+In ZavaShop LAB 3 C#, the convention is `AGUI_SERVER_URL=http://127.0.0.1:5100` and the scripts call `${AGUI_SERVER_URL}/chat`.
 
 ## Troubleshooting
 
@@ -389,7 +401,14 @@ agent = Agent(client=agent_client, instructions=system_instruction)
 | Tool-call evaluator skipped | No tools attached to the agent | Add tools, or remove `TOOL_CALL_ACCURACY` from `evaluators` |
 | `evaluate_traces` returns 0 items | `response_ids` don't belong to the project / weren't created via Responses API | Verify IDs in Foundry portal; ensure agent used `FoundryChatClient` |
 | Red-team "Feature not available in region" | Project in unsupported region | Move project to a [supported region](https://learn.microsoft.com/azure/ai-foundry/concepts/evaluation-metrics-built-in) |
-| Red-team `pyrit` import errors | Wrong `pyrit` version | Pin `pyrit==0.9.0` |
+| Red-team `pyrit` import errors | Wrong `pyrit` version | Pin `pyrit==0.9.0` (older azure-ai-evaluation) or `pyrit==0.11.0` (azure-ai-evaluation ≥1.16) |
+| `RedTeam` import fails from `azure.ai.evaluation` | Class moved in 1.16+ | Import from `azure.ai.evaluation.red_team`: `from azure.ai.evaluation.red_team import AttackStrategy, RedTeam, RiskCategory` |
+| `RedTeam(azure_ai_project=...)` → "must be a dictionary" | Older azure-ai-evaluation (≤1.4) only accepts the dict shape | Upgrade to ≥1.16 (`pip install --upgrade "azure-ai-evaluation[redteam]"`), then pass the endpoint URL string directly |
+| `AttributeError: 'coroutine' object has no attribute 'token'` inside `RAIClient` | azure-ai-evaluation's internal token manager calls `get_token()` synchronously | Pass a **sync** `AzureCliCredential` (from `azure.identity`, not `azure.identity.aio`) into `RedTeam(...)` |
+| `evaluate_agent` → 400 `MissingRequiredDataMapping` for `tool_definitions` | `FoundryEvals.GROUNDEDNESS` (1.0.0rc3 prerelease) doesn't auto-wire the `tool_definitions` field into the dataset run | Drop `GROUNDEDNESS` from `evaluators=[...]` for the agent-eval path — keep `RELEVANCE` + `TOOL_CALL_ACCURACY`. Use `GROUNDEDNESS` only via the self-reflection / `FoundryEvals.evaluate([EvalItem(...)])` path where you supply `context=` manually. |
+| `EvalItemResult.status == "completed"` everywhere, never `"pass"` | Item-level pass/fail lives on the **scores**, not on the status | Treat `status` as run status only; compute item pass = `not any(s.passed is False for s in item.scores)` (`s.passed is None` means the evaluator was skipped, not failed) |
+| Red-team against a remote C# endpoint crashes with HTTP 500 | The model/content filter threw inside the HTTP bridge | Catch exceptions in `POST /chat` and return a safe refusal string with HTTP 200 so RedTeam can score the refusal |
+| Remote C# eval has no tool-call accuracy | The HTTP bridge returns text, not Python tool-call telemetry | Submit remote conversations with `FoundryEvals.RELEVANCE` / similarity-style checks and add explicit assertions for required refusals or business outcomes |
 | Self-reflection never improves | Judge score saturates early, or `max_reflections` too low | Inspect `iteration_scores`; raise `max_reflections` or refine the reflection prompt |
 
 ## Public API Reference

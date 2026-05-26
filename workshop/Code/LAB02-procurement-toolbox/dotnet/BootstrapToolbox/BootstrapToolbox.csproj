@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>ZavaShop.LAB02.BootstrapToolbox</RootNamespace>
+    <AssemblyName>BootstrapToolbox</AssemblyName>
+    <NoWarn>$(NoWarn);NU1604</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Agents.AI" Version="*-*" />
+    <PackageReference Include="Microsoft.Agents.AI.Foundry" Version="*-*" />
+    <PackageReference Include="Microsoft.Extensions.AI" Version="*-*" />
+    <PackageReference Include="Azure.AI.Projects" Version="*-*" />
+    <PackageReference Include="Azure.Identity" Version="*" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="..\..\data\ZavaData.cs" Link="ZavaData.cs" />
+  </ItemGroup>
+
+</Project>

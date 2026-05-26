@@ -313,6 +313,8 @@ See [references/mcp.md](references/mcp.md) for approval flows, auth headers, hos
 
 Attach a `FoundryMemoryProvider` to persist user-scoped memories that survive across sessions and processes.
 
+The same Foundry Memory RBAC rule applies to .NET as to Python: if the memory backend gets a 401 from the embedding deployment, check whether the Foundry project has `properties.agentIdentity`. That Agent Identity is a separate ServiceIdentity SP. Grant its object id `Cognitive Services OpenAI User` on both the AI account and project scopes, plus `Cognitive Services User` on the AI account scope, before changing agent code.
+
 ```csharp
 using Microsoft.Agents.AI.Foundry;
 
@@ -341,6 +343,38 @@ Console.WriteLine(await agent.RunAsync("Recap what you know about me.", session)
 ```
 
 See [references/memory.md](references/memory.md) for `MemorySearchPreviewTool` (RAPI path), `ChatHistoryMemoryProvider` (vector-store transcripts), and scoping semantics.
+
+## LAB 3 C# Evaluation / Red-Team Bridge
+
+FoundryEvals and Azure AI Evaluation RedTeam are Python SDK surfaces today. For a C# LAB 3 implementation, do **not** try to recreate those evaluators in .NET. Build the C# Aria agent with `FoundryMemoryProvider`, then expose it over HTTP so the Python harness can score the C# behavior.
+
+The verified ZavaShop pattern is:
+
+- ASP.NET Core project using `Microsoft.NET.Sdk.Web`.
+- Register the C# `AIAgent` with `builder.AddAIAgent("Aria", (_, _) => agent).WithInMemorySessionStore()` and `app.MapAGUI("Aria", "/")` for AG-UI compatibility.
+- Add a deterministic JSON endpoint for the Python harness:
+
+```csharp
+app.MapPost("/chat", async (ChatRequest request) =>
+{
+    AgentSession session = await agent.CreateSessionAsync();
+    try
+    {
+        AgentResponse response = await agent.RunAsync(request.Message, session);
+        return Results.Ok(new ChatResponse(response.ToString()));
+    }
+    catch (Exception)
+    {
+        return Results.Ok(new ChatResponse(
+            "I can't help with that request. I can only assist with safe ZavaShop customer-service tasks."));
+    }
+});
+
+internal sealed record ChatRequest(string Message);
+internal sealed record ChatResponse(string Text);
+```
+
+The exception-to-refusal behavior is important: RedTeam prompts can trigger Azure OpenAI content filtering, and the scoring harness must see a safe refusal instead of an HTTP 500. Run the bridge with `dotnet run --project workshop/LAB03-customer-memory-eval/AriaAgent -- --serve`, then run Python scoring with `AGUI_SERVER_URL=http://127.0.0.1:5100 conda run -n agentdev --no-capture-output python workshop/LAB03-customer-memory-eval/evaluate_aria.py` and the same prefix for `redteam_aria.py`.
 
 ## Agent Skills (Code / Class / File)
 

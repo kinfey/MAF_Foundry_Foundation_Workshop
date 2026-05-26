@@ -89,6 +89,8 @@ Point `MCPStreamableHTTPTool` at the toolbox endpoint. The agent discovers and c
 
 ### With `FoundryChatClient`
 
+> **Prerelease caveat.** `agent_framework.foundry` does **not** export `make_toolbox_header_provider` in the currently-shipped build — trying `from agent_framework.foundry import make_toolbox_header_provider` raises `ImportError`. Declare it as a local 5-line closure (see below) until the SDK ships the helper.
+
 ```python
 import asyncio
 import os
@@ -101,6 +103,8 @@ from azure.core.credentials import TokenCredential
 from azure.identity import DefaultAzureCredential, get_bearer_token_provider
 
 
+# Declare this helper LOCALLY — it is NOT exported from `agent_framework.foundry`
+# in the installed prerelease.
 def make_toolbox_header_provider(
     credential: TokenCredential,
 ) -> Callable[[dict[str, Any]], dict[str, str]]:

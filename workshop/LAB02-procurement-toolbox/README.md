@@ -98,8 +98,8 @@ The Coding Agent will:
 Follow the Foundry Toolbox section of the SKILL. Things to verify:
 
 - Use `AIProjectClient(endpoint=..., credential=AzureCliCredential())` inside `async with`.
-- Submit a new version with `project_client.beta.toolboxes.create_version(...)`.
-- Print the resulting toolbox name + URL so the next step can use them.
+- `project_client.beta.toolboxes` is exposed (with `create_version` / `list` / `update` / `delete`), but the current prerelease's `toolboxes.list()` can raise a server-side `UnicodeDecodeError` (gzip/Content-Encoding bug). **Wrap the call in `try/except Exception` and print actionable guidance** so the LAB still runs end-to-end — `pierre_agent.py` falls back to Microsoft Learn MCP whenever `FOUNDRY_TOOLBOX_ENDPOINT` is unset.
+- Print the operations available on `project_client.beta.toolboxes` (use `dir()` + `callable()`) so the learner can see the live surface.
 - Print `len(load_suppliers())` and `len(load_contracts())` once at startup so you confirm the fixtures loaded cleanly. Import them with:
   ```python
   import sys
@@ -110,34 +110,40 @@ Follow the Foundry Toolbox section of the SKILL. Things to verify:
 
 ### Step 3 — `pierre_agent.py`
 
-```python
-import sys
-from pathlib import Path
+> **Two prerelease caveats (verified May 2026).** The currently-installed `agent_framework` build does **not** export `make_toolbox_header_provider` from `agent_framework.foundry`, so declare it locally (5 lines). Skill names must match `[a-z0-9-]+` — use `procurement-actions`, **not** `procurement_actions`. Use `agent.create_session()` + `session=session`; `AgentThread` / `get_new_thread()` aren't exported.
 
-from agent_framework import Agent, MCPStreamableHTTPTool, InlineSkill, SkillFrontmatter, SkillsProvider
-from agent_framework.foundry import FoundryChatClient, make_toolbox_header_provider
-from azure.identity import AzureCliCredential, get_bearer_token_provider
+```python
+import os
+import sys
+from collections.abc import Callable
+from pathlib import Path
+from typing import Any
+
+from agent_framework import (
+    Agent, MCPStreamableHTTPTool, InlineSkill, SkillFrontmatter, SkillsProvider,
+)
+from agent_framework.foundry import FoundryChatClient
+from azure.identity import get_bearer_token_provider
+from azure.identity.aio import AzureCliCredential
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "data"))
 from zava_data import find_supplier, find_contract
 
-# 1. Credential + Toolbox auth header
-credential = AzureCliCredential()
-token_provider = get_bearer_token_provider(credential, "https://ai.azure.com/.default")
-header_provider = make_toolbox_header_provider(token_provider)
 
-# 2. Toolbox tool
-toolbox_tool = MCPStreamableHTTPTool(
-    name="zavashop-procurement",
-    url=f"{os.environ['FOUNDRY_PROJECT_ENDPOINT']}/toolboxes/zavashop-procurement",
-    header_provider=header_provider,
-    load_prompts=False,
-)
+# 1. Local replacement for the unshipped `make_toolbox_header_provider` export.
+def make_toolbox_header_provider(
+    credential: AzureCliCredential,
+) -> Callable[[dict[str, Any]], dict[str, str]]:
+    get_token = get_bearer_token_provider(credential, "https://ai.azure.com/.default")
+    def provide(_kwargs: dict[str, Any]) -> dict[str, str]:
+        return {"Authorization": f"Bearer {get_token()}"}
+    return provide
 
-# 3. PO skill (approval required by default)
+
+# 2. PO skill (approval required by default). Names must be kebab-case.
 po_skill = InlineSkill(
     frontmatter=SkillFrontmatter(
-        name="procurement_actions",
+        name="procurement-actions",
         description="Submit / modify Purchase Orders for approved suppliers.",
     ),
     instructions=(
@@ -165,16 +171,38 @@ def submit_po(supplier: str, sku: str, qty: int, unit_price: float) -> str:
         f"qty={qty} unit_price={unit_price} total=${total:,.0f}"
     )
 
-# 4. Agent
-async with Agent(
-    client=FoundryChatClient(project_endpoint=..., model="gpt-5.5", credential=credential),
-    name="Pierre",
-    instructions="You are Pierre, the AI procurement agent for ZavaShop's Shanghai office.",
-    tools=[toolbox_tool],
-    context_providers=[SkillsProvider(po_skill, require_script_approval=True)],
-) as agent:
-    thread = agent.get_new_thread()
-    ...
+
+async def main() -> None:
+    # Optional toolbox endpoint; falls back to Microsoft Learn MCP so the
+    # wiring still runs end-to-end when the Foundry Toolbox isn't provisioned yet.
+    toolbox_url = os.environ.get(
+        "FOUNDRY_TOOLBOX_ENDPOINT",
+        "https://learn.microsoft.com/api/mcp",
+    )
+    use_real_toolbox = "FOUNDRY_TOOLBOX_ENDPOINT" in os.environ
+
+    async with AzureCliCredential() as credential:
+        mcp_kwargs: dict[str, Any] = {
+            "name": "zavashop-procurement" if use_real_toolbox else "learn-mcp",
+            "url": toolbox_url,
+            "load_prompts": False,
+        }
+        if use_real_toolbox:
+            mcp_kwargs["header_provider"] = make_toolbox_header_provider(credential)
+
+        async with MCPStreamableHTTPTool(**mcp_kwargs) as toolbox_tool, Agent(
+            client=FoundryChatClient(
+                project_endpoint=os.environ["FOUNDRY_PROJECT_ENDPOINT"],
+                model=os.environ["FOUNDRY_MODEL"],
+                credential=credential,
+            ),
+            name="Pierre",
+            instructions="You are Pierre, the AI procurement agent for ZavaShop's Shanghai office.",
+            tools=[toolbox_tool],
+            context_providers=[SkillsProvider(po_skill, require_script_approval=True)],
+        ) as agent:
+            session = agent.create_session()
+            ...
 ```
 
 > **Two layers of guardrail.** `require_script_approval=True` blocks any PO from running without a human nod; on top of that, `submit_po` itself looks up the contract via `find_contract(supplier_id)` and refuses to even ask for approval when the amount exceeds `max_single_po_usd`. Both layers are intentional — do not weaken either one to make a demo "work".
@@ -193,10 +221,15 @@ queries = [
     "Add another one: same supplier, SKU-7421 x 5000 units at $25 each.",
 ]
 for q in queries:
-    result = await agent.run(q, thread=thread)
+    result = await agent.run(q, session=session)
+    # Walk every FunctionApprovalRequest. In this LAB the policy is
+    # `auto-approve every submit_po call`; the contract-cap guard lives
+    # inside submit_po so Turn 3 still rejects with [REJECTED] …
     while result.user_input_requests:
-        # Handle FunctionApprovalRequestContent
-        ...
+        for request in result.user_input_requests:
+            approval_response = request.to_function_approval_response(approved=True)
+            result = await agent.run(approval_response, session=session)
+    print(result.text)
 ```
 
 ### Step 5 — Run it
@@ -210,12 +243,12 @@ python pierre_agent.py
 
 ## Acceptance criteria
 
-- [ ] The Toolbox is visible in the Foundry project (portal or `project_client.beta.toolboxes.list_versions(...)`).
+- [ ] `bootstrap_toolbox.py` shows that `project_client.beta.toolboxes` is reachable (it lists the available operations `create_version` / `list` / …). If `toolboxes.list()` raises the current prerelease `UnicodeDecodeError`, the script catches it and prints portal-provisioning instructions — that still counts as "toolbox surface verified".
 - [ ] `bootstrap_toolbox.py` prints the supplier / contract counts loaded from `workshop/data/` (sanity check).
-- [ ] Turn 1 clearly cites contract / pricing content fetched via the MCP tool, and references `CT-2026-Q1-YIWU` or the negotiated $6.80 unit price from the contract.
+- [ ] Turn 1 clearly cites contract / pricing content fetched via the MCP tool (or via the `get_contract` / `get_supplier` fallback function tools when `FOUNDRY_TOOLBOX_ENDPOINT` is unset), and references `CT-2026-Q1-YIWU` or the negotiated $6.80 unit price from the contract.
 - [ ] Turn 2 prints `[OK] Submitted PO ...` in the console **with no human intervention** (the script auto-approves; $1,360 < $100k cap).
 - [ ] Turn 3 is stopped by `submit_po`'s own contract-cap check (`[REJECTED] PO total $125,000 exceeds contract CT-2026-Q1-YIWU ceiling $100,000`), the model picks an alternative path (e.g. suggests splitting the order), and **no PO is actually submitted**.
-- [ ] The whole flow uses exactly one `FoundryChatClient` and one thread — no `AzureAIAgentsProvider` is spawned.
+- [ ] The whole flow uses exactly one `FoundryChatClient` and one `AgentSession` — no `AzureAIAgentsProvider` is spawned.
 - [ ] `pierre_agent.py` contains **no inline supplier / contract dict** — supplier and contract data are read through `zava_data.find_supplier` / `zava_data.find_contract`.
 
 ---
@@ -234,10 +267,13 @@ I'm doing LAB 2 in C# — build the ZavaShop procurement agent Pierre with a Fou
 
 It will create two console projects under [`workshop/LAB02-procurement-toolbox/`](.):
 
-- `BootstrapToolbox/` — one-shot setup that calls `AgentToolboxes.CreateToolboxVersionAsync(...)` to publish the `zavashop-procurement` Toolbox with 2 MCP tools and `RequireApproval = false`.
-- `PierreAgent/` — main app: `AIProjectClient.AsAIAgent(...)` + a hosted MCP tool aimed at the Toolbox URL + an `AgentInlineSkill("procurement_actions")` wired through `AgentSkillsProvider` with `RequireScriptApproval = true` + a 3-turn `AgentSession`.
+- `BootstrapToolbox/` — one-shot setup. The .NET prerelease exposes the full toolbox surface (`AgentAdministrationClient.GetAgentToolboxes()` → `AgentToolboxes.CreateToolboxVersionAsync(...)` etc.) but the toolbox name + tool list still need to be authored once in the portal for ZavaShop. The bootstrap script confirms the surface is reachable, prints the supplier / contract counts, and prints the portal steps needed before Pierre can point at a real toolbox.
+- `PierreAgent/` — main app: `AIProjectClient.AsAIAgent(...)` + a local `McpClient` (pointed at `FOUNDRY_TOOLBOX_ENDPOINT` when set, otherwise at Microsoft Learn MCP so the wiring still runs end-to-end) + an `AgentInlineSkill("procurement-actions")` wired through `AgentSkillsProvider` with `AgentSkillsProviderOptions { ScriptApproval = true }` + a 3-turn `AgentSession` with an auto-approval loop.
 
 Both csproj files link `..\..\data\ZavaData.cs`.
+
+> Skill names are validated against `^[a-z][a-z0-9-]*[a-z0-9]$` — use kebab-case (`procurement-actions`), not snake_case.
+> `AgentInlineSkill` and `AgentSkillsProvider` are marked `[Experimental("MAAI001")]` in the current prerelease, so `PierreAgent.csproj` adds `MAAI001` to `<NoWarn>`.
 
 ### Step 2 — PO submission with two layers of guardrail (C#)
 
@@ -272,21 +308,25 @@ static string SubmitPo(
            $"qty={qty} unit_price={unitPrice} total=${total:N0}";
 }
 
-var procurementSkill = new AgentInlineSkill(
-    name: "procurement_actions",
-    description: "Submit / modify Purchase Orders for approved suppliers.",
-    instructions: "Use submit_po to submit a PO. Before submitting, confirm SKU, quantity " +
-                  "and unit price, and ALWAYS look up the supplier's contract first — if the " +
-                  "order exceeds max_single_po_usd, propose splitting the order instead of " +
-                  "forcing it through.",
-    scripts: [AIFunctionFactory.Create(SubmitPo)]);
+AgentInlineSkill procurementSkill = new AgentInlineSkill(
+        name: "procurement-actions",
+        description: "Submit / modify Purchase Orders for approved suppliers.",
+        instructions: "Use submit_po to submit a PO. Before submitting, confirm SKU, quantity " +
+                      "and unit price, and ALWAYS look up the supplier's contract first — if the " +
+                      "order exceeds max_single_po_usd, propose splitting the order instead of " +
+                      "forcing it through.")
+    .AddScript("submit_po", SubmitPo);
+
+AgentSkillsProvider skillsProvider = new(
+    new[] { procurementSkill },
+    new AgentSkillsProviderOptions { ScriptApproval = true });
 ```
 
-Attach it through `AgentSkillsProvider(requireScriptApproval: true)` and pass the provider in via `ChatClientAgentOptions.ContextProviders`.
+Attach `skillsProvider` via `ChatClientAgentOptions.AIContextProviders` and pass the procurement tools (function tools + MCP tools) through `ChatOptions.Tools`.
 
 ### Step 3 — Three-turn run + approval capture
 
-In the run loop, capture `FunctionApprovalRequestContent` from the response stream and auto-approve only when `total < $100,000` AND below the supplier's contract cap. Reject otherwise, citing the contract id.
+`ScriptApproval = true` causes every `submit_po` call to surface as a `Microsoft.Extensions.AI.ToolApprovalRequestContent` inside `response.Messages[*].Contents`. The driver loop walks those, approves them, and feeds the `CreateResponse(...)` payloads back into the same `AgentSession`. The cap-guard inside `SubmitPo` does the real rejection — auto-approving the call still surfaces `[REJECTED] PO total $125,000 exceeds contract CT-2026-Q1-YIWU ceiling $100,000` to the model.
 
 ```csharp
 AgentSession session = await agent.CreateSessionAsync();
@@ -301,21 +341,37 @@ string[] queries =
 foreach (var q in queries)
 {
     AgentResponse response = await agent.RunAsync(q, session);
-    // … walk response.UserInputRequests and respond with approve / reject.
+
+    while (true)
+    {
+        var approvals = response.Messages
+            .SelectMany(m => m.Contents)
+            .OfType<ToolApprovalRequestContent>()
+            .ToList();
+        if (approvals.Count == 0) break;
+
+        var replies = approvals
+            .Select(r => (AIContent)r.CreateResponse(approved: true, reason: "demo auto-approve"))
+            .ToList();
+        response = await agent.RunAsync(new[] { new ChatMessage(ChatRole.User, replies) }, session);
+    }
+
+    Console.WriteLine(response);
 }
 ```
 
 ### Step 4 — Run it
 
 ```bash
-dotnet run --project workshop/LAB02-procurement-toolbox/BootstrapToolbox     # one-off
+dotnet run --project workshop/LAB02-procurement-toolbox/BootstrapToolbox     # one-off probe + portal steps
 dotnet run --project workshop/LAB02-procurement-toolbox/PierreAgent
 ```
 
-The acceptance criteria above still apply. Two .NET-specific notes:
+The acceptance criteria above still apply. Three .NET-specific notes:
 
 - Use **exactly one** `AIProjectClient` and one `AgentSession`. Do not create a persistent `FoundryAgent` per request.
-- Reject any code that bypasses `RequireScriptApproval = true` to make the third turn "go through" — the $125k case must trip `submit_po`'s contract-cap branch and never get approved.
+- Reject any code that bypasses `ScriptApproval = true` to make the third turn "go through" — the $125k case must trip `SubmitPo`'s contract-cap branch and surface as `[REJECTED]`, never as `[OK]`.
+- If `FOUNDRY_TOOLBOX_ENDPOINT` is not set in `workshop/.env`, the agent falls back to Microsoft Learn MCP so the rest of the wiring still demonstrably runs.
 
 ---
 

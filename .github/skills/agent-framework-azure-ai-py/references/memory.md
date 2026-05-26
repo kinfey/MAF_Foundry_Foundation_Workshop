@@ -163,6 +163,87 @@ The user prefers dark roast coffee.
 | Embedding errors | Embedding model not deployed in the project | Deploy `text-embedding-3-small` (or similar) and set `AZURE_OPENAI_EMBEDDING_MODEL` |
 | Cost growing unexpectedly | `update_delay=0` in production | Raise `update_delay` to batch writes; periodically delete unused stores |
 | Service-side messages duplicating memory | `store=True` while also using `FoundryMemoryProvider` | Either keep both (full transcript + memory) or set `default_options={"store": False}` to rely only on memory |
+| `401 InvalidAuthenticationTokenTenant` when memory backend calls the embedding model | Foundry projects with `properties.agentIdentity` use a separate ServiceIdentity SP for data-plane calls — the account / project MI is NOT used | Find the project's `properties.agentIdentity.agentIdentityId` via `az resource show`, then grant **`Cognitive Services OpenAI User`** on both the account and the project, and **`Cognitive Services User`** on the account, to that Agent Identity SP |
+| `UnicodeDecodeError` from `memory_stores.create` / `list` / `search_memories` | Server returns gzipped response that the prerelease SDK does not decode | Attach an `Accept-Encoding: identity` policy via `AIProjectClient(per_call_policies=[...])` — see snippet below |
+| `delete(name)` then immediate `create(name)` returns a 409 / soft-tombstone | Memory store names linger after delete | Always use a unique suffix: `f"zavashop-memory-{uuid.uuid4().hex[:8]}"` |
+| Session 2 doesn't recall facts even after a long sleep | `FoundryMemoryProvider.after_run` is fire-and-forget — it submits `begin_update_memories` but doesn't await the poller | For demos, explicitly call `await project_client.beta.memory_stores.begin_update_memories(name=..., scope=..., items=[...], update_delay=0)` and `await poller.result()`, then poll `search_memories` until rows land — don't `asyncio.sleep()` and hope |
+| Memory store has rows but Session 2 still ignores them | Seed blurb was action-oriented (e.g. *"ship my order to..."*) — the memory extractor only stores declarative user facts | Phrase the seed as personal facts: *"My name is X. I prefer Y. I am allergic to Z. My delivery window is W."* |
+
+### Identity / gzip workaround (verified on agent-framework 1.0.0rc3)
+
+```python
+from azure.core.pipeline.policies import SansIOHTTPPolicy
+
+class IdentityEncodingPolicy(SansIOHTTPPolicy):
+    """Force `Accept-Encoding: identity` so memory_stores responses are not gzipped."""
+    def on_request(self, request):  # type: ignore[override]
+        request.http_request.headers["Accept-Encoding"] = "identity"
+
+async with (
+    AzureCliCredential() as credential,
+    AIProjectClient(
+        endpoint=endpoint,
+        credential=credential,
+        per_call_policies=[IdentityEncodingPolicy()],
+    ) as project_client,
+):
+    ...
+```
+
+### Synchronous demo-flush (verified pattern for `update_delay=0` runs)
+
+```python
+# After Session 1's turn, explicitly flush + wait for the poller, then poll
+# search_memories until rows appear. Don't rely on `asyncio.sleep()`.
+update_poller = await project_client.beta.memory_stores.begin_update_memories(
+    name=memory_store.name,
+    scope=f"customer_{customer_id}",
+    items=[
+        {"role": "user", "type": "message", "content": prefs_blurb},
+        {"role": "assistant", "type": "message", "content": seed_result.text},
+    ],
+    update_delay=0,
+)
+try:
+    await update_poller.result()
+except Exception:
+    # The provider's own after_run write usually lands even when this
+    # explicit call surfaces a 401 — fall through to the polling loop.
+    pass
+
+for _ in range(12):
+    res = await project_client.beta.memory_stores.search_memories(
+        name=memory_store.name,
+        scope=f"customer_{customer_id}",
+    )
+    if res.memories:
+        break
+    await asyncio.sleep(5)
+```
+
+### Finding the Agent Identity SP for RBAC
+
+```bash
+az resource show \
+  --ids "/subscriptions/<sub>/resourceGroups/<rg>/providers/Microsoft.CognitiveServices/accounts/<account>/projects/<project>" \
+  --api-version 2025-04-01-preview \
+  --query "properties.agentIdentity" -o json
+# → { "agentIdentityId": "<object-id>", ... }
+
+# Grant data-plane roles to THAT object id (not the account / project MI):
+az role assignment create --assignee-object-id <agentIdentityId> \
+  --assignee-principal-type ServicePrincipal \
+  --role "Cognitive Services OpenAI User" \
+  --scope "/subscriptions/<sub>/resourceGroups/<rg>/providers/Microsoft.CognitiveServices/accounts/<account>"
+az role assignment create --assignee-object-id <agentIdentityId> \
+  --assignee-principal-type ServicePrincipal \
+  --role "Cognitive Services OpenAI User" \
+  --scope "/subscriptions/<sub>/resourceGroups/<rg>/providers/Microsoft.CognitiveServices/accounts/<account>/projects/<project>"
+az role assignment create --assignee-object-id <agentIdentityId> \
+  --assignee-principal-type ServicePrincipal \
+  --role "Cognitive Services User" \
+  --scope "/subscriptions/<sub>/resourceGroups/<rg>/providers/Microsoft.CognitiveServices/accounts/<account>"
+```
 
 ## Public API Reference
 

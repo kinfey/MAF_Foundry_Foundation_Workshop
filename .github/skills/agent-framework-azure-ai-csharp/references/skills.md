@@ -65,6 +65,42 @@ AIAgent agent = projectClient.AsAIAgent(new ChatClientAgentOptions
 Console.WriteLine(await agent.RunAsync("How many km is 26.2 miles?"));
 ```
 
+### Requiring approval before scripts run
+
+Pass `AgentSkillsProviderOptions { ScriptApproval = true }` to gate every script execution behind a human approval step. The flag lives on the **options** object — there is no ctor parameter named `requireScriptApproval`.
+
+```csharp
+AgentSkillsProvider provider = new(
+    new[] { procurementSkill },
+    new AgentSkillsProviderOptions { ScriptApproval = true });
+```
+
+When the agent decides to call a script, the next `RunAsync` returns a `Microsoft.Extensions.AI.ToolApprovalRequestContent` inside the response messages instead of the script's result. Walk every request, reply with `request.CreateResponse(approved, reason)`, wrap the responses in a single user `ChatMessage`, and feed it back to `RunAsync` on the same `AgentSession`:
+
+```csharp
+using Microsoft.Extensions.AI;
+
+AgentResponse response = await agent.RunAsync(prompt, session);
+
+while (true)
+{
+    var approvals = response.Messages
+        .SelectMany(m => m.Contents)
+        .OfType<ToolApprovalRequestContent>()
+        .ToList();
+    if (approvals.Count == 0) break;
+
+    var replies = approvals
+        .Select(r => (AIContent)r.CreateResponse(approved: true, reason: "policy: auto-approve"))
+        .ToList();
+    response = await agent.RunAsync(new[] { new ChatMessage(ChatRole.User, replies) }, session);
+}
+```
+
+`ToolApprovalRequestContent` exposes `RequestId` and a `ToolCall` (the underlying function-call content). Use those for logging or for routing a request to a real human reviewer — return `approved: false` to abort the script run.
+
+> The current prerelease marks `AgentInlineSkill`, `AgentClassSkill<TSelf>`, `AgentSkillsProvider`, and `AgentSkillsProviderOptions` with `[Experimental("MAAI001")]`. Add `MAAI001` to `<NoWarn>` in any csproj that uses them.
+
 ---
 
 ## `AgentClassSkill<TSelf>` (Class with Attributes)

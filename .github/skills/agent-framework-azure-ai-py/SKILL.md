@@ -339,7 +339,9 @@ async with Agent(
     ...
 ```
 
-Memory stores are created on the project (`project_client.beta.memory_stores.create(...)`) with both a **chat model** and an **embedding model** in the definition. Use a stable `scope` (e.g. user ID) for memories that should follow a user across sessions.
+Memory stores are created on the project (`project_client.beta.memory_stores.create(...)`) with both a **chat model** and an **embedding model** in the definition. Use a stable `scope` (e.g. user ID) for memories that should follow a user across sessions. On the current prerelease, wire `AIProjectClient(per_call_policies=[IdentityEncodingPolicy()])` where the policy sets `Accept-Encoding: identity`; otherwise `memory_stores.create` / `list` / `search_memories` can fail with `UnicodeDecodeError` on gzipped responses. Use uuid-suffixed store names for demos because delete + immediate same-name create can collide.
+
+Foundry projects that expose `properties.agentIdentity` use a separate ServiceIdentity SP for memory data-plane calls into the embedding model. If the memory backend returns 401, find `properties.agentIdentity.agentIdentityId` with `az resource show --ids .../projects/<project> --api-version 2025-04-01-preview` and grant that SP `Cognitive Services OpenAI User` on both the AI account and project scopes, plus `Cognitive Services User` on the account scope. Do not grant those roles only to the signed-in user, account managed identity, or project subresource identity.
 
 See [references/memory.md](references/memory.md) for full setup, `MemoryStoreDefaultDefinition`/`MemoryStoreDefaultOptions`, scope semantics, and troubleshooting.
 
@@ -356,10 +358,13 @@ from agent_framework import evaluate_agent
 from agent_framework.foundry import FoundryChatClient, FoundryEvals, evaluate_traces
 
 chat_client = FoundryChatClient(project_endpoint=..., model=..., credential=AzureCliCredential())
-evals = FoundryEvals(client=chat_client)   # smart defaults; auto-adds tool_call_accuracy if tools exist
+agent_evals = FoundryEvals(
+    client=chat_client,
+    evaluators=[FoundryEvals.RELEVANCE, FoundryEvals.TOOL_CALL_ACCURACY],
+)
 
 # Dev inner loop: run + evaluate in one call
-results = await evaluate_agent(agent=agent, queries=[...], evaluators=evals)
+results = await evaluate_agent(agent=agent, queries=[...], evaluators=agent_evals)
 
 # Zero-code-change: score responses or App Insights traces after the fact
 results = await evaluate_traces(
@@ -369,9 +374,9 @@ results = await evaluate_traces(
 )
 ```
 
-Use `ConversationSplit.{LAST_TURN, FULL}` or `EvalItem.per_turn_items(...)` to slice multi-turn conversations. Use `evaluate_workflow(...)` for multi-agent orchestrations; each result entry exposes `sub_results` per agent.
+Use `ConversationSplit.{LAST_TURN, FULL}` or `EvalItem.per_turn_items(...)` to slice multi-turn conversations. Use `evaluate_workflow(...)` for multi-agent orchestrations; each result entry exposes `sub_results` per agent. For `evaluate_agent(...)` on `agent-framework 1.0.0rc3`, keep the evaluator list to `FoundryEvals.RELEVANCE` + `FoundryEvals.TOOL_CALL_ACCURACY`: `FoundryEvals.GROUNDEDNESS` currently fails the agent-eval dataset path with `MissingRequiredDataMapping: tool_definitions`. Use groundedness only through direct `FoundryEvals.evaluate([EvalItem(..., context=...)])` / self-reflection flows where you provide `context=` manually. Per-item pass/fail is on `scores[].passed`; `EvalItemResult.status == "completed"` is just run status.
 
-For adversarial testing, install `azure-ai-evaluation` + `pyrit==0.9.0` and run `RedTeam.scan(target=agent_callback, attack_strategies=[...])`. Target **ASR < 5%** before production.
+For adversarial testing, install `azure-ai-evaluation[redteam]`. With azure-ai-evaluation 1.16+, import `RedTeam` from `azure.ai.evaluation.red_team`, pass the Foundry project endpoint URL string directly as `azure_ai_project`, and pass a **sync** `azure.identity.AzureCliCredential` to `RedTeam(...)` even when the agent code uses `azure.identity.aio.AzureCliCredential`. Pin `pyrit==0.11.0` for azure-ai-evaluation 1.16+ (`pyrit==0.9.0` for older evaluation packages). Compose attack strategies with nested lists such as `[AttackStrategy.Base64, AttackStrategy.ROT13]` when `AttackStrategy.Compose(...)` is unavailable. Target **ASR < 5%** before production.
 
 See [references/evaluation.md](references/evaluation.md) for the full evaluator catalog, the `AgentEvalConverter` pattern, multi-turn / workflow / similarity flows, red-team strategy list, and the Reflexion self-reflection loop.
 

@@ -37,3 +37,21 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Workshop LAB workspaces: keep learner-facing docs tracked, ignore generated code/results.
+# The curated examples under workshop/Code/ are intentionally not covered by these rules.
+workshop/LAB01-inventory-agent/**
+!workshop/LAB01-inventory-agent/
+!workshop/LAB01-inventory-agent/**/*.md
+workshop/LAB02-procurement-toolbox/**
+!workshop/LAB02-procurement-toolbox/
+!workshop/LAB02-procurement-toolbox/**/*.md
+workshop/LAB03-customer-memory-eval/**
+!workshop/LAB03-customer-memory-eval/
+!workshop/LAB03-customer-memory-eval/**/*.md
+workshop/LAB04-fulfillment-workflow/**
+!workshop/LAB04-fulfillment-workflow/
+!workshop/LAB04-fulfillment-workflow/**/*.md
+workshop/LAB05-control-tower-agui/**
+!workshop/LAB05-control-tower-agui/
+!workshop/LAB05-control-tower-agui/**/*.md
