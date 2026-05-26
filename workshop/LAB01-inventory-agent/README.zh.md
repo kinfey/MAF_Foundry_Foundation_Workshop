@@ -1,7 +1,23 @@
 # LAB 1 — 仓储助手 Zara：单 Agent + Function Tools + MCP
 
-> **由 SKILL 协助**：[`agent-framework-azure-ai-py`](../../.github/skills/agent-framework-azure-ai-py/SKILL.md)
+> **由 SKILL 协助**（任选一个赛道）：
+> - Python：[`agent-framework-azure-ai-py`](../../.github/skills/agent-framework-azure-ai-py/SKILL.md)
+> - .NET（C#）：[`agent-framework-azure-ai-csharp`](../../.github/skills/agent-framework-azure-ai-csharp/SKILL.md)
+>
 > **Foundry 模型**：`gpt-5.5`
+
+---
+
+## 选择你的技术栈
+
+本 LAB 同时提供两个等效的实现。**同一个故事、同一份 fixture、同一套验收标准**，选一走：
+
+| 赛道 | 交付物 | 需要加载的 Skill | 数据 helper |
+|------|--------|---------------------|---------------|
+| 🐍 **Python** | `zara_agent.py` | [`agent-framework-azure-ai-py/SKILL.md`](../../.github/skills/agent-framework-azure-ai-py/SKILL.md) + [`references/tools.md`](../../.github/skills/agent-framework-azure-ai-py/references/tools.md) + [`references/mcp.md`](../../.github/skills/agent-framework-azure-ai-py/references/mcp.md) + [`references/threads.md`](../../.github/skills/agent-framework-azure-ai-py/references/threads.md) | [`workshop/data/zava_data.py`](../data/zava_data.py) |
+| 🟦 **.NET（C#）** | `ZaraAgent/` 控制台项目 | [`agent-framework-azure-ai-csharp/SKILL.md`](../../.github/skills/agent-framework-azure-ai-csharp/SKILL.md) + [`references/tools.md`](../../.github/skills/agent-framework-azure-ai-csharp/references/tools.md) + [`references/mcp.md`](../../.github/skills/agent-framework-azure-ai-csharp/references/mcp.md) + [`references/threads.md`](../../.github/skills/agent-framework-azure-ai-csharp/references/threads.md) | [`workshop/data/ZavaData.cs`](../data/ZavaData.cs) |
+
+Python 赛道在 [§任务清单](#任务清单)；.NET 赛道在 [§.NET 实现赛道](#net-实现赛道)。验收标准两者完全一致。
 
 ---
 
@@ -178,6 +194,137 @@ python zara_agent.py
 - [ ] 第三轮的回复明显带有 Microsoft Learn 内容（说明 MCP 被调用）。
 - [ ] 整个脚本没有手动 `close()`，全部走 `async with`。
 - [ ] `zara_agent.py` 中 **没有任何 mock dict** — 库存 / PO 数据全部通过 `zava_data.find_stock` / `zava_data.find_po` 读取。
+
+---
+
+## .NET 实现赛道
+
+面向选择 .NET 赛道的学员。同一个故事、同一份 fixture、同一套验收标准。
+
+### Step 1 — 调用 ZavaShop Coding Agent（C#）
+
+```
+@zavashop-coding-agent I'm doing LAB 1 in C# — build the ZavaShop inventory agent Zara.
+```
+
+Coding Agent 会：
+
+1. `read_file` [`.github/skills/agent-framework-azure-ai-csharp/SKILL.md`](../../.github/skills/agent-framework-azure-ai-csharp/SKILL.md)，并加载 [`references/tools.md`](../../.github/skills/agent-framework-azure-ai-csharp/references/tools.md)、[`references/mcp.md`](../../.github/skills/agent-framework-azure-ai-csharp/references/mcp.md)、[`references/threads.md`](../../.github/skills/agent-framework-azure-ai-csharp/references/threads.md)。
+2. `read_file` 本 LAB README。
+3. 在 [`workshop/LAB01-inventory-agent/`](.) 下创建 `ZaraAgent/`：`Microsoft.NET.Sdk` 控制台项目，面向 `net10.0`，并以 link 方式引入 `..\data\ZavaData.cs`。
+4. 工具：`GetStock(sku, warehouse)` + `GetPoStatus(po_number)` 由 `AIFunctionFactory.Create(...)` 包装；再加一个 hosted MCP 工具，用 `ResponseTool.CreateMcpTool(...)` 指向 `https://learn.microsoft.com/api/mcp`。
+5. 用 `AgentSession` 跑 3 轮对话。
+6. `get_errors` → `dotnet build` → `dotnet run`。
+
+### Step 2 — `ZaraAgent.csproj`
+
+```xml
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Agents.AI" Version="*-*" />
+    <PackageReference Include="Microsoft.Agents.AI.Foundry" Version="*-*" />
+    <PackageReference Include="Microsoft.Extensions.AI" Version="*-*" />
+    <PackageReference Include="Azure.AI.Projects" Version="*-*" />
+    <PackageReference Include="Azure.Identity" Version="*" />
+    <PackageReference Include="OpenAI" Version="*-*" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="..\..\data\ZavaData.cs" Link="ZavaData.cs" />
+  </ItemGroup>
+</Project>
+```
+
+### Step 3 — 实现两个 function tool（C#）
+
+```csharp
+using System.ComponentModel;
+using Microsoft.Extensions.AI;
+using ZavaShop.Workshop.Data;
+
+[Description("Get current on-hand stock of a SKU in a warehouse.")]
+static string GetStock(
+    [Description("SKU id, e.g. SKU-7421.")] string sku,
+    [Description("Warehouse id, e.g. SEA-01.")] string warehouse)
+{
+    var row = ZavaData.FindStock(sku, warehouse);
+    if (row is null) return $"{sku} is not tracked at warehouse {warehouse}.";
+    return $"{sku} @ {warehouse}: on_hand={row["on_hand"]}, " +
+           $"reserved={row["reserved"]}, reorder_point={row["reorder_point"]}";
+}
+
+[Description("Query the status of an inbound Purchase Order.")]
+static string GetPoStatus(
+    [Description("PO number, e.g. PO-20260518-001.")] string poNumber)
+{
+    var po = ZavaData.FindPo(poNumber);
+    return po?.ToJsonString() ?? $"{{\"po_number\":\"{poNumber}\",\"status\":\"unknown\"}}";
+}
+```
+
+> **禁止 inline mock。** 与 Python 赛道一样：所有查询都必须走 [`workshop/data/ZavaData.cs`](../data/ZavaData.cs)，如此 LAB 1 的「`SKU-7421 @ SEA-01`」才能跟其他 LAB 对齐。
+
+### Step 4 — 创建 Agent，挂载 MCP 工具（C#）
+
+```csharp
+using Azure.AI.Projects;
+using Azure.Identity;
+using Microsoft.Agents.AI;
+using Microsoft.Extensions.AI;
+using OpenAI.Responses;
+
+string endpoint = Environment.GetEnvironmentVariable("FOUNDRY_PROJECT_ENDPOINT")!;
+string model    = Environment.GetEnvironmentVariable("FOUNDRY_MODEL")!;
+
+var projectClient = new AIProjectClient(new Uri(endpoint), new AzureCliCredential());
+
+ProjectsAgentTool learnMcp = ProjectsAgentTool.AsProjectTool(
+    ResponseTool.CreateMcpTool(
+        serverLabel: "learn-mcp",
+        serverUri: new Uri("https://learn.microsoft.com/api/mcp"),
+        toolCallApprovalPolicy: new McpToolCallApprovalPolicy(
+            GlobalMcpToolCallApprovalPolicy.NeverRequireApproval)));
+
+AIAgent agent = projectClient.AsAIAgent(
+    model,
+    instructions: "You are Zara, the warehouse assistant for ZavaShop's Seattle fulfillment " +
+                  "center. Always answer using real data from the tools — never make up stock numbers.",
+    name: "Zara",
+    tools: [
+        AIFunctionFactory.Create(GetStock),
+        AIFunctionFactory.Create(GetPoStatus),
+        learnMcp,
+    ]);
+```
+
+### Step 5 — 用 AgentSession 跑 3 轮对话
+
+```csharp
+AgentSession session = await agent.CreateSessionAsync();
+
+Console.WriteLine(await agent.RunAsync(
+    "How many SKU-7421 do we have left at SEA-01?", session));
+
+Console.WriteLine(await agent.RunAsync(
+    "What is the most recent PO for that SKU that hasn't arrived yet?", session));
+
+Console.WriteLine(await agent.RunAsync(
+    "Search the Microsoft Learn MCP for best practices on Azure AI Foundry.", session));
+```
+
+### Step 6 — 运行
+
+```bash
+cd workshop/LAB01-inventory-agent/ZaraAgent
+dotnet run
+```
+
+上面的验收标准适用不变 — 同一个 `on_hand=312`、同一个 `PO-20260518-001` in_transit ETA `2026-05-26`、同一个第三轮包含 Microsoft Learn 内容、同一条「不允许内联 mock」的规则（所有查询走 `ZavaData`）。
 
 ---
 

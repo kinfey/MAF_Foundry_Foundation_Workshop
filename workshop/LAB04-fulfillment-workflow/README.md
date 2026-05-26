@@ -1,8 +1,22 @@
 # LAB 4 — Order Fulfillment Orchestration: Multi-Agent Workflow + HITL + Checkpoint
 
-> **Powered by SKILL**: [`agent-framework-workflows-py`](../../.github/skills/agent-framework-workflows-py/SKILL.md)
+> **Powered by SKILL** (pick one track):
+> - Python: [`agent-framework-workflows-py`](../../.github/skills/agent-framework-workflows-py/SKILL.md)
+> - .NET (C#): [`agent-framework-workflows-csharp`](../../.github/skills/agent-framework-workflows-csharp/SKILL.md)
+>
 > **Foundry model**: `gpt-5.5`
 > **Chinese edition**: [README.zh.md](./README.zh.md)
+
+---
+
+## Choose your stack
+
+| Track | Build artefacts | Skill files | Data helper |
+|-------|-----------------|-------------|-------------|
+| 🐍 **Python** | `fulfillment_workflow.py` | [`agent-framework-workflows-py/SKILL.md`](../../.github/skills/agent-framework-workflows-py/SKILL.md) | [`zava_data.py`](../data/zava_data.py) |
+| 🟦 **.NET (C#)** | `FulfillmentWorkflow/` | [`agent-framework-workflows-csharp/SKILL.md`](../../.github/skills/agent-framework-workflows-csharp/SKILL.md) | [`ZavaData.cs`](../data/ZavaData.cs) |
+
+Python track is documented in [§Tasks](#tasks); .NET track is documented in [§.NET implementation path](#net-implementation-path). Same fixtures (`orders.json`, `inventory.json`, `carriers.json`, `warehouses.json`), same $1000 approval threshold, same scenarios A (`ORD-20260524-001`, $196.50) and B (`ORD-20260524-002`, $1500).
 
 ---
 
@@ -217,6 +231,107 @@ Deliberately `Ctrl+C` the second run; note the `checkpoint_id`; then call `workf
 - [ ] The checkpoint directory contains multiple superstep files; resuming continues from the breakpoint with no double-decrement of stock.
 - [ ] `fulfillment_agent = workflow.as_agent()` is callable from external code like any agent (returns a summary-style reply).
 - [ ] `intake` resolves the order via `find_order` (no free-form parsing), and `quote_freight` returns rows derived from `carriers.json` (carrier IDs match `FEDEX` / `DHL` / `USPS` / `ARAMEX` / `SFEXPRESS`).
+
+---
+
+## .NET implementation path
+
+Same DAG, same HITL gate, same checkpoint resume.
+
+### Step 1 — Invoke the Coding Agent (C#)
+
+```
+@zavashop-coding-agent I'm doing LAB 4 in C# — build the order-fulfillment workflow with HITL approval and checkpoint resume.
+```
+
+It will create `FulfillmentWorkflow/` under [`workshop/LAB04-fulfillment-workflow/`](.) with `..\..\data\ZavaData.cs` linked and these packages: `Microsoft.Agents.AI`, `Microsoft.Agents.AI.Workflows`, `Microsoft.Agents.AI.Foundry`, `Azure.AI.Projects`, `Azure.Identity`.
+
+### Step 2 — Build the DAG with `WorkflowBuilder`
+
+```csharp
+using Microsoft.Agents.AI.Workflows;
+using Microsoft.Agents.AI.Workflows.Checkpointing;
+using ZavaShop.Workshop.Data;
+
+var workflow = new WorkflowBuilder()
+    .AddExecutor<OrderId, OrderRecord>("intake",        IntakeAsync)
+    .AddExecutor<OrderRecord, StockResult>("stock_check",  StockCheckAsync)
+    .AddExecutor<OrderRecord, QuoteResult>("shipping_quote", ShippingQuoteAsync)
+    .AddExecutor<(StockResult, QuoteResult), AllocationPlan>("allocation", AllocateAsync)
+    .AddExecutor<AllocationPlan, ApprovalDecision>("approval", ApprovalAsync)
+    .AddExecutor<ApprovalDecision, DispatchResult>("dispatch", DispatchAsync)
+    .AddExecutor<DispatchResult, FinanceResult>("finance", FinanceAsync)
+    .AddEdge("intake", "stock_check")
+    .AddEdge("intake", "shipping_quote")               // fan-out
+    .AddFanInEdge(["stock_check", "shipping_quote"], "allocation")
+    .AddEdge("allocation", "approval")
+    .AddEdge("approval",   "dispatch")
+    .AddEdge("dispatch",   "finance")
+    .SetStartExecutor("intake")
+    .WithCheckpointing(new FileCheckpointStorage("./_checkpoints"))
+    .Build();
+```
+
+### Step 3 — HITL in the `approval` executor
+
+```csharp
+static async Task<ApprovalDecision> ApprovalAsync(AllocationPlan plan, IWorkflowContext ctx)
+{
+    if (plan.TotalUsd < 1000m)
+        return new ApprovalDecision(true, "auto-approved (<$1000)");
+
+    var hitl = await ctx.RequestInfoAsync<HumanApprovalRequest, HumanApprovalResponse>(
+        new HumanApprovalRequest(plan.OrderId, plan.TotalUsd, plan.Reason));
+
+    return new ApprovalDecision(hitl.Approve, hitl.Comment);
+}
+```
+
+The outer event loop catches `RequestInfoEvent`, prompts the operator on the console, then calls `workflow.SendResponseAsync(...)` — same shape as the Python `ctx.request_info(...)` flow.
+
+### Step 4 — `intake` and `shipping_quote` go through `ZavaData`
+
+```csharp
+static Task<OrderRecord> IntakeAsync(OrderId id, IWorkflowContext ctx)
+{
+    var order = ZavaData.FindOrder(id.Value)
+                ?? throw new InvalidOperationException($"Unknown order {id.Value}");
+    return Task.FromResult(OrderRecord.FromJson(order));
+}
+
+static Task<QuoteResult> ShippingQuoteAsync(OrderRecord order, IWorkflowContext ctx)
+{
+    var quotes = ZavaData.LoadCarriers()
+        .Select(c => new CarrierQuote(
+            CarrierId: c["carrier_id"]!.GetValue<string>(),
+            EtaDays:   c["avg_lead_time_days"]!.GetValue<int>(),
+            PriceUsd:  Pricing.Quote(order, c)))
+        .OrderBy(q => q.PriceUsd)
+        .ToList();
+    return Task.FromResult(new QuoteResult(quotes));
+}
+```
+
+No inline carrier table — it must come from `carriers.json` via `ZavaData.LoadCarriers()` so the `FEDEX` / `DHL` / `USPS` / `ARAMEX` / `SFEXPRESS` ids match the acceptance bullet.
+
+### Step 5 — Expose the whole workflow as one agent (C#)
+
+```csharp
+AIAgent fulfillmentAgent = workflow.AsAgent(
+    name: "FulfillmentOrchestrator",
+    description: "Drives a ZavaShop order from intake to finance, with HITL approval above $1000.");
+```
+
+`fulfillmentAgent` can now be passed to LAB 5 as a sub-agent.
+
+### Step 6 — Run + resume from checkpoint
+
+```bash
+dotnet run --project workshop/LAB04-fulfillment-workflow/FulfillmentWorkflow -- ORD-20260524-001
+dotnet run --project workshop/LAB04-fulfillment-workflow/FulfillmentWorkflow -- ORD-20260524-002
+```
+
+For Scenario B, `Ctrl+C` mid-approval; note the printed `checkpoint_id`; relaunch with `-- ORD-20260524-002 --resume <id>` and confirm execution resumes from the checkpoint, with **no double stock decrement**. The acceptance bullets above apply unchanged.
 
 ---
 

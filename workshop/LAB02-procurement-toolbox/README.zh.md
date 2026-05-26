@@ -1,7 +1,21 @@
 # LAB 2 — 采购代理 Pierre：Foundry Toolbox + Agent Skills + Thread
 
-> **由 SKILL 协助**：[`agent-framework-azure-ai-py`](../../.github/skills/agent-framework-azure-ai-py/SKILL.md)
+> **由 SKILL 协助**（任选一个赛道）：
+> - Python：[`agent-framework-azure-ai-py`](../../.github/skills/agent-framework-azure-ai-py/SKILL.md)
+> - .NET（C#）：[`agent-framework-azure-ai-csharp`](../../.github/skills/agent-framework-azure-ai-csharp/SKILL.md)
+>
 > **Foundry 模型**：`gpt-5.5`
+
+---
+
+## 选择你的技术栈
+
+| 赛道 | 交付物 | 需要加载的 Skill | 数据 helper |
+|------|--------|---------------------|---------------|
+| 🐍 **Python** | `bootstrap_toolbox.py` + `pierre_agent.py` | [`agent-framework-azure-ai-py/SKILL.md`](../../.github/skills/agent-framework-azure-ai-py/SKILL.md) + [`references/foundry-toolbox.md`](../../.github/skills/agent-framework-azure-ai-py/references/foundry-toolbox.md) + [`references/skills.md`](../../.github/skills/agent-framework-azure-ai-py/references/skills.md) + [`references/threads.md`](../../.github/skills/agent-framework-azure-ai-py/references/threads.md) | [`zava_data.py`](../data/zava_data.py) |
+| 🟦 **.NET（C#）** | `BootstrapToolbox/` + `PierreAgent/` | [`agent-framework-azure-ai-csharp/SKILL.md`](../../.github/skills/agent-framework-azure-ai-csharp/SKILL.md) + [`references/foundry-toolbox.md`](../../.github/skills/agent-framework-azure-ai-csharp/references/foundry-toolbox.md) + [`references/skills.md`](../../.github/skills/agent-framework-azure-ai-csharp/references/skills.md) + [`references/threads.md`](../../.github/skills/agent-framework-azure-ai-csharp/references/threads.md) | [`ZavaData.cs`](../data/ZavaData.cs) |
+
+Python 赛道在 [§任务清单](#任务清单)；.NET 赛道在 [§.NET 实现赛道](#net-实现赛道)。
 
 ---
 
@@ -195,6 +209,103 @@ python pierre_agent.py
 - [ ] 第 3 轮被 `submit_po` 自己的合同上限检查拦下（`[REJECTED] PO total $125,000 exceeds contract CT-2026-Q1-YIWU ceiling $100,000`），模型走了第二条路径（比如建议拆单），**没有任何 PO 真的被提交**。
 - [ ] 整个过程只创建了一个 `FoundryChatClient` 和一个 thread，没有跑出 `AzureAIAgentsProvider`。
 - [ ] `pierre_agent.py` 没有任何内联的供应商 / 合同字典 — 全部通过 `zava_data.find_supplier` / `zava_data.find_contract` 读取。
+
+---
+
+## .NET 实现赛道
+
+同一个故事、同一份 fixture（`suppliers.json` / `contracts.json` / `skus.json`）、同一条 `CT-2026-Q1-YIWU` $100k 上限规则。
+
+### Step 1 — 调用 Coding Agent（C#）
+
+```
+@zavashop-coding-agent I'm doing LAB 2 in C# — build the ZavaShop procurement agent Pierre with a Foundry Toolbox + an Agent Skill that requires approval.
+```
+
+Coding Agent 会在 [`workshop/LAB02-procurement-toolbox/`](.) 下创建两个控制台项目：
+
+- `BootstrapToolbox/`：一次性调用 `AgentToolboxes.CreateToolboxVersionAsync(...)` 创建包含 2 个 MCP 工具、`RequireApproval = false` 的 `zavashop-procurement` Toolbox。
+- `PierreAgent/`：主程序 — `AIProjectClient.AsAIAgent(...)` + 一个指向 Toolbox URL 的 hosted MCP 工具 + 一个由 `AgentSkillsProvider`（`RequireScriptApproval = true`）接入的 `AgentInlineSkill("procurement_actions")` + 3 轮 `AgentSession` 对话。
+
+两个 csproj 都要 link `..\..\data\ZavaData.cs`。
+
+### Step 2 — 两层护栏的 PO 提交（C#）
+
+inline skill 中的 `submit_po` 脚本在请求审批之前先检合同上限：
+
+```csharp
+using System.ComponentModel;
+using Microsoft.Agents.AI;
+using ZavaShop.Workshop.Data;
+
+[Description("Submit a purchase order for an approved supplier.")]
+static string SubmitPo(
+    [Description("Supplier id or name.")] string supplier,
+    [Description("SKU id, e.g. SKU-3055.")] string sku,
+    [Description("Quantity.")] int qty,
+    [Description("Unit price in USD.")] double unitPrice)
+{
+    var sup = ZavaData.FindSupplier(supplier);
+    if (sup is null) return $"[REJECTED] Unknown supplier '{supplier}'.";
+
+    var contract = ZavaData.FindContract(sup["supplier_id"]!.GetValue<string>());
+    var total = qty * unitPrice;
+    if (contract is not null &&
+        total > contract["max_single_po_usd"]!.GetValue<double>())
+    {
+        return $"[REJECTED] PO total ${total:N0} exceeds contract " +
+               $"{contract["contract_id"]} ceiling ${contract["max_single_po_usd"]:N0}. " +
+               "Suggest splitting into multiple POs.";
+    }
+
+    return $"[OK] Submitted PO supplier={sup["name"]} ({sup["supplier_id"]}) sku={sku} " +
+           $"qty={qty} unit_price={unitPrice} total=${total:N0}";
+}
+
+var procurementSkill = new AgentInlineSkill(
+    name: "procurement_actions",
+    description: "Submit / modify Purchase Orders for approved suppliers.",
+    instructions: "Use submit_po to submit a PO. Before submitting, confirm SKU, quantity " +
+                  "and unit price, and ALWAYS look up the supplier's contract first — if the " +
+                  "order exceeds max_single_po_usd, propose splitting the order instead of " +
+                  "forcing it through.",
+    scripts: [AIFunctionFactory.Create(SubmitPo)]);
+```
+
+通过 `AgentSkillsProvider(requireScriptApproval: true)` 注册，并在 `ChatClientAgentOptions.ContextProviders` 中传入。
+
+### Step 3 — 3 轮对话 + 审批捕获
+
+在 run 循环中从响应流捕获 `FunctionApprovalRequestContent`，仅在 `total < $100,000` 且小于对应合同的 cap 时自动审批。其余拒绝，并引用合同号。
+
+```csharp
+AgentSession session = await agent.CreateSessionAsync();
+
+string[] queries =
+[
+    "What is the latest contract with SUP-001 (YiwuClay)? Quote me the negotiated unit price for SKU-3055.",
+    "Good. Submit a PO to SUP-001 for SKU-3055 x 200 at the negotiated price.",
+    "Add another one: same supplier, SKU-7421 x 5000 units at $25 each.",
+];
+
+foreach (var q in queries)
+{
+    AgentResponse response = await agent.RunAsync(q, session);
+    // … 遍历 response.UserInputRequests，应答 approve / reject。
+}
+```
+
+### Step 4 — 运行
+
+```bash
+dotnet run --project workshop/LAB02-procurement-toolbox/BootstrapToolbox     # 一次性
+dotnet run --project workshop/LAB02-procurement-toolbox/PierreAgent
+```
+
+上面的验收标准全部适用。两个 .NET 独有约束：
+
+- 只能创建 **一个** `AIProjectClient` 和 **一个** `AgentSession`。不要为每个请求创建持久化 `FoundryAgent`。
+- 任何为了让第 3 轮「跑起来」而绕开 `RequireScriptApproval = true` 的写法都要拒绝 — $125k 这一轮必须被 `submit_po` 的合同上限检查拦下，永远不被审批。
 
 ---
 

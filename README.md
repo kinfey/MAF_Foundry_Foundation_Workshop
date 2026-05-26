@@ -4,6 +4,8 @@
 
 This workshop walks you through the **Microsoft Agent Framework + Microsoft Foundry (gpt-5.5)** stack in **five LABs**, each one delivering a runnable feature on top of a single, continuous story.
 
+> **Two implementation tracks share the same story.** Every LAB ships in both **Python** and **.NET (C#)**. Same fixtures, same acceptance criteria, same Foundry model. Pick a track per LAB — you can switch between LABs.
+
 ---
 
 ## 0. The story — ZavaShop
@@ -34,13 +36,13 @@ You are the **AI Platform Engineer** at ZavaShop. The five LABs below are the fi
 
 ## 1. The five LABs
 
-| LAB | Story | Owner | What you build | SKILL |
-|-----|-------|-------|---------------|-------|
-| [LAB01 — Inventory Agent](workshop/LAB01-inventory-agent/README.md) | Seattle DC supervisor **Mei** gets interrupted 60× a day | Mei | Agent **Zara**: function tools + HostedMCPTool + Thread | [agent-framework-azure-ai-py](.github/skills/agent-framework-azure-ai-py/SKILL.md) |
-| [LAB02 — Procurement Toolbox](workshop/LAB02-procurement-toolbox/README.md) | Shanghai senior buyer **Pierre** juggles 8 systems | Pierre | Agent **Pierre**: Foundry Toolbox + Agent Skills + approval workflow | same as above (Toolbox / Skills / Threads) |
-| [LAB03 — Customer Memory & Eval](workshop/LAB03-customer-memory-eval/README.md) | CS director **Lin** wants an agent that "remembers customers and is measurable" | Lin | Agent **Aria**: Foundry Memory + Evaluation + Red-Team | same as above (Memory / Evaluation) |
-| [LAB04 — Fulfillment Workflow](workshop/LAB04-fulfillment-workflow/README.md) | Fulfillment director **Diego** wants exception orders to self-orchestrate | Diego | Multi-agent **ZavaFulfillment** workflow: WorkflowBuilder + HITL + Checkpoint | [agent-framework-workflows-py](.github/skills/agent-framework-workflows-py/SKILL.md) |
-| [LAB05 — Control Tower with AG-UI](workshop/LAB05-control-tower-agui/README.md) | The CEO wants a single dashboard that "feels alive" | CEO | **ZavaControlTower** AG-UI server + React frontend (covers all 7 AG-UI features) | [agent-framework-agui-py](.github/skills/agent-framework-agui-py/SKILL.md) |
+| LAB | Story | Owner | What you build | Python SKILL | C# SKILL |
+|-----|-------|-------|---------------|--------------|----------|
+| [LAB01 — Inventory Agent](workshop/LAB01-inventory-agent/README.md) | Seattle DC supervisor **Mei** gets interrupted 60× a day | Mei | Agent **Zara**: function tools + HostedMCPTool + Thread | [agent-framework-azure-ai-py](.github/skills/agent-framework-azure-ai-py/SKILL.md) | [agent-framework-azure-ai-csharp](.github/skills/agent-framework-azure-ai-csharp/SKILL.md) |
+| [LAB02 — Procurement Toolbox](workshop/LAB02-procurement-toolbox/README.md) | Shanghai senior buyer **Pierre** juggles 8 systems | Pierre | Agent **Pierre**: Foundry Toolbox + Agent Skills + approval workflow | same as above (Toolbox / Skills / Threads) | same as above (Toolbox / Skills / Threads) |
+| [LAB03 — Customer Memory & Eval](workshop/LAB03-customer-memory-eval/README.md) | CS director **Lin** wants an agent that "remembers customers and is measurable" | Lin | Agent **Aria**: Foundry Memory + Evaluation + Red-Team | same as above (Memory / Evaluation) | same as above (**Memory only** — Evaluation + Red-Team SDKs are Python-only; reuse the Python scripts against your C# agent's endpoint) |
+| [LAB04 — Fulfillment Workflow](workshop/LAB04-fulfillment-workflow/README.md) | Fulfillment director **Diego** wants exception orders to self-orchestrate | Diego | Multi-agent **ZavaFulfillment** workflow: WorkflowBuilder + HITL + Checkpoint | [agent-framework-workflows-py](.github/skills/agent-framework-workflows-py/SKILL.md) | [agent-framework-workflows-csharp](.github/skills/agent-framework-workflows-csharp/SKILL.md) |
+| [LAB05 — Control Tower with AG-UI](workshop/LAB05-control-tower-agui/README.md) | The CEO wants a single dashboard that "feels alive" | CEO | **ZavaControlTower** AG-UI server + React frontend (covers all 7 AG-UI features) | [agent-framework-agui-py](.github/skills/agent-framework-agui-py/SKILL.md) | [agent-framework-agui-csharp](.github/skills/agent-framework-agui-csharp/SKILL.md) |
 
 Every LAB ships:
 
@@ -63,7 +65,11 @@ Every LAB ships:
 az login --use-device-code
 ```
 
-### 2.2 Local environment
+### 2.2 Local environment — pick a track (or both)
+
+The core fixtures and the Coding Agent are language-agnostic. Pick whichever LAB tracks you want to run.
+
+#### Python option
 
 - Python **3.10+**
 - Node.js **20+** (LAB05 frontend only)
@@ -83,6 +89,33 @@ pip install \
   "uvicorn[standard]"
 ```
 
+#### .NET option
+
+- **.NET 10 SDK** (`dotnet --version` ≥ `10.0.100`)
+- Node.js **20+** (LAB05 frontend only)
+
+The .NET track uses the prerelease Agent Framework NuGet packages — each C# SKILL lists the exact set per LAB. The common ones are:
+
+```text
+Microsoft.Agents.AI
+Microsoft.Agents.AI.Foundry
+Microsoft.Agents.AI.Workflows                          # LAB 4 / LAB 5
+Microsoft.Agents.AI.Hosting.AGUI.AspNetCore            # LAB 5 server
+Microsoft.Agents.AI.AGUI                               # LAB 5 client
+Microsoft.Extensions.AI
+Azure.AI.Projects
+Azure.Identity
+ModelContextProtocol                                   # MCP clients
+```
+
+Each LAB's `.csproj` links the shared data helper:
+
+```xml
+<ItemGroup>
+  <Compile Include="..\..\data\ZavaData.cs" Link="ZavaData.cs" />
+</ItemGroup>
+```
+
 > Individual LABs may add small extras (e.g. AG-UI client). Check each LAB's README for details.
 
 ### 2.3 `.env`
@@ -99,11 +132,15 @@ AGUI_SERVER_URL=http://127.0.0.1:5100/
 AG_UI_API_KEY=zava-control-tower-demo-key
 ```
 
-> Every LAB reads `FOUNDRY_MODEL` / `FOUNDRY_PROJECT_ENDPOINT` from the environment — **never hardcode** these in source files.
+> Every LAB reads `FOUNDRY_MODEL` / `FOUNDRY_PROJECT_ENDPOINT` from the environment — **never hardcode** these in source files. The same env vars are used by both the Python and the .NET tracks.
 
 ---
 
-## 3. Three SKILL files (read in order)
+## 3. Six SKILL files (three per track, read in order)
+
+The Coding Agent always loads the SKILL for the chosen track. Python and C# SKILLs cover the same topics so you can swap tracks per LAB.
+
+### Python
 
 | SKILL | Use it for | Read it before |
 |-------|-----------|---------------|
@@ -111,7 +148,15 @@ AG_UI_API_KEY=zava-control-tower-demo-key
 | [agent-framework-workflows-py](.github/skills/agent-framework-workflows-py/SKILL.md) | Multi-agent workflows: WorkflowBuilder, Executor, HITL, Checkpoint, ConcurrentBuilder | LAB04 |
 | [agent-framework-agui-py](.github/skills/agent-framework-agui-py/SKILL.md) | AG-UI server / client: SSE endpoints, frontend / backend tools, HITL, state, Generative UI, predictive updates | LAB05 |
 
-> Every LAB README starts by saying *"Read the SKILL first"*. **Do not skip.**
+### .NET (C#)
+
+| SKILL | Use it for | Read it before |
+|-------|-----------|---------------|
+| [agent-framework-azure-ai-csharp](.github/skills/agent-framework-azure-ai-csharp/SKILL.md) | Building agents on Foundry / Azure AI Agents Service: tools, MCP, Toolbox, Agent Skills, Memory, Threads | LAB01, LAB02, LAB03 (memory only) |
+| [agent-framework-workflows-csharp](.github/skills/agent-framework-workflows-csharp/SKILL.md) | Multi-agent workflows: `WorkflowBuilder`, executors, HITL `RequestInfoAsync`, checkpoint resume, `AsAgent()` | LAB04 |
+| [agent-framework-agui-csharp](.github/skills/agent-framework-agui-csharp/SKILL.md) | AG-UI server / client in ASP.NET Core: `MapAGUI`, `AGUIChatClient`, shared state, frontend / backend tools, HITL | LAB05 |
+
+> Every LAB README starts by saying *"Read the SKILL first."* **Do not skip.**
 
 ---
 
@@ -129,15 +174,31 @@ All five LABs read the same fictional dataset from [`workshop/data/`](workshop/d
 | `carriers.json` | LAB04 / LAB05 | 5 freight carriers (FedEx / DHL / USPS / Aramex / SF Express) |
 | `exceptions.json` | LAB05 | 4 open exception cases for the control tower |
 | `eval_queries.jsonl` | LAB03 | 5 evaluation prompts with expected tool + expected outcome |
-| `zava_data.py` | every LAB | Loader module (`find_stock`, `find_po`, `find_supplier`, `find_contract`, `find_customer`, `find_order`, `load_*`) |
+| `zava_data.py` | every Python LAB | Loader module (`find_stock`, `find_po`, `find_supplier`, `find_contract`, `find_customer`, `find_order`, `load_*`) |
+| `ZavaData.cs` | every .NET LAB | Loader module for the .NET track. Mirrors `zava_data.py`; exposes static `Load*` / `Find*` under namespace `ZavaShop.Workshop.Data`. Each LAB's `.csproj` links it as a shared compile. |
 
-In every LAB script, add the data folder to `sys.path` and call the loader:
+In every Python LAB script, add the data folder to `sys.path` and call the loader:
 
 ```python
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "data"))
 from zava_data import find_stock, find_po
+```
+
+In every .NET LAB project, link the shared helper into the csproj and use it directly:
+
+```xml
+<ItemGroup>
+  <Compile Include="..\..\data\ZavaData.cs" Link="ZavaData.cs" />
+</ItemGroup>
+```
+
+```csharp
+using ZavaShop.Workshop.Data;
+
+var stock = ZavaData.FindStock("SKU-7421", "SEA-01");
+int onHand = stock?["on_hand"]?.GetValue<int>() ?? 0;   // 312
 ```
 
 See [workshop/data/README.md](workshop/data/README.md) for the full schema and editing rules.
@@ -151,17 +212,17 @@ This workshop ships a Coding Agent ready for GitHub Copilot Chat:
 - Definition: [.github/agents/zavashop-coding-agent.agent.md](.github/agents/zavashop-coding-agent.agent.md)
 - Mention it as: **`@zavashop-coding-agent`**
 
-It already knows the LAB ↔ SKILL routing. For every LAB, the very first step in the README is:
+It already knows the LAB ↔ SKILL routing and the **track ↔ SKILL** routing. For every LAB, the very first step in the README is:
 
 ```text
-@zavashop-coding-agent I'm doing LAB X — <one-line goal>
+@zavashop-coding-agent I'm doing LAB X in <Python|C#> — <one-line goal>
 ```
 
 When you do that, the Coding Agent will:
 
-1. Look up the LAB ↔ SKILL routing table.
-2. `read_file` the matching SKILL into context.
-3. `read_file` the LAB README.
+1. Look up the LAB ↔ SKILL routing table for your track.
+2. `read_file` the matching SKILL into context (Python or C#).
+3. `read_file` the LAB README (Python section or .NET section).
 4. Generate the task plan, write the code, run validation.
 5. Map each acceptance criterion in your LAB and report which ones pass.
 
@@ -195,14 +256,18 @@ MAF_Foundry_Foundation_Workshop/
 ├── README.zh.md                               # Chinese edition
 ├── .github/
 │   ├── agents/
-│   │   └── zavashop-coding-agent.agent.md   # GitHub Copilot Coding Agent
+│   │   └── zavashop-coding-agent.agent.md   # GitHub Copilot Coding Agent (Python + .NET aware)
 │   └── skills/
-│       ├── agent-framework-azure-ai-py/
+│       ├── agent-framework-azure-ai-py/         # 🐍 Python track
 │       ├── agent-framework-workflows-py/
-│       └── agent-framework-agui-py/
+│       ├── agent-framework-agui-py/
+│       ├── agent-framework-azure-ai-csharp/     # 🟦 .NET track
+│       ├── agent-framework-workflows-csharp/
+│       └── agent-framework-agui-csharp/
 └── workshop/
     ├── data/                                  # 🔵 shared ZavaShop fixtures (see data/README.md)
-    │   ├── zava_data.py
+    │   ├── zava_data.py                       # Python loader
+    │   ├── ZavaData.cs                        # .NET loader (linked into each LAB csproj)
     │   ├── warehouses.json / skus.json / inventory.json
     │   ├── purchase_orders.json / suppliers.json / contracts.json
     │   ├── customers.json / orders.json / carriers.json

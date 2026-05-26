@@ -1,7 +1,21 @@
 # LAB 5 — 供应链指挥中心：AG-UI 前端 + 共享状态 + 生成式 UI
 
-> **由 SKILL 协助**：[`agent-framework-agui-py`](../../.github/skills/agent-framework-agui-py/SKILL.md)
+> **由 SKILL 协助**（任选一个赛道）：
+> - Python：[`agent-framework-agui-py`](../../.github/skills/agent-framework-agui-py/SKILL.md)
+> - .NET（C#）：[`agent-framework-agui-csharp`](../../.github/skills/agent-framework-agui-csharp/SKILL.md)
+>
 > **Foundry 模型**：`gpt-5.5`
+
+---
+
+## 选择你的技术栈
+
+| 赛道 | 交付物 | 需要加载的 Skill | 数据 helper |
+|------|--------|---------------------|---------------|
+| 🐍 **Python** | `server.py` + `client_smoketest.py` | [`agent-framework-agui-py/SKILL.md`](../../.github/skills/agent-framework-agui-py/SKILL.md) | [`zava_data.py`](../data/zava_data.py) |
+| 🟦 **.NET（C#）** | `ControlTower/`（ASP.NET Core） + `ControlTowerSmoke/` | [`agent-framework-agui-csharp/SKILL.md`](../../.github/skills/agent-framework-agui-csharp/SKILL.md) | [`ZavaData.cs`](../data/ZavaData.cs) |
+
+Python 赛道在 [§任务清单](#任务清单)；.NET 赛道在 [§.NET 实现赛道](#net-实现赛道)。两个赛道都监听 `http://127.0.0.1:5100/`、都用 `X-API-Key: zava-control-tower-demo-key`、背后都是同一份 `exceptions.json` / `carriers.json` / `orders.json`。
 
 ---
 
@@ -213,6 +227,106 @@ asyncio.run(main())
 - [ ] `quote_freight` 一次调用 **同时**：模型拿到 "已为 X→Y 找到 N 个报价" 摘要、shared state 出现 `last_freight_quote` 且 `carrier` 能在 `carriers.json` 里抓到（`FEDEX` / `DHL` / `USPS` / `ARAMEX` / `SFEXPRESS`）、前端组件能拿到 `tool_result`。
 - [ ] `frontend/README.md` 含完整的 7 特性 → 7 组件映射表。
 - [ ] `server.py` 中 **没有 `[{"order": "ORD-009", ...}]` 占位符** — `list_exceptions` / `quote_freight` 都走 `zava_data.load_exceptions` / `zava_data.load_carriers`。
+
+---
+
+## .NET 实现赛道
+
+同样七个 AG-UI 特性、同样的共享状态、同样的 API Key、同样的客户端烟雾脚本。
+
+### Step 1 — 调用 Coding Agent（C#）
+
+```
+@zavashop-coding-agent I'm doing LAB 5 in C# — expose the LAB 4 fulfillment workflow over AG-UI so the control tower can drive it.
+```
+
+会在 [`workshop/LAB05-control-tower-agui/`](.) 下创建两个项目：
+
+- `ControlTower/`：ASP.NET Core minimal host，引入 LAB 4 的 `fulfillmentAgent`，用 `Microsoft.Agents.AI.Hosting.AGUI.AspNetCore` 里的 `MapAGUI(agent)` 包装，并用 `X-API-Key` 护门。
+- `ControlTowerSmoke/`：控制台烟雾客户端，基于 `AGUIChatClient`。
+
+两个 csproj 都要 link `..\..\data\ZavaData.cs`。
+
+### Step 2 — 把 workflow 挂成 AG-UI endpoint（C#）
+
+```csharp
+using Microsoft.Agents.AI;
+using Microsoft.Agents.AI.Hosting.AGUI.AspNetCore;
+
+var builder = WebApplication.CreateBuilder(args);
+builder.Services.AddAGUI();
+
+var app = builder.Build();
+
+app.Use(async (ctx, next) =>
+{
+    var expected = Environment.GetEnvironmentVariable("AG_UI_API_KEY")!;
+    if (ctx.Request.Headers["X-API-Key"] != expected)
+    {
+        ctx.Response.StatusCode = StatusCodes.Status401Unauthorized;
+        return;
+    }
+    await next();
+});
+
+AIAgent controlTower = FulfillmentWorkflowFactory.BuildAgent();   // 来自 LAB 4
+app.MapAGUI("/", controlTower);
+
+app.Run("http://127.0.0.1:5100");
+```
+
+### Step 3 — 会写共享状态的服务端工具（C#）
+
+`list_exceptions` 与 `quote_freight` 走 `ZavaData`，并通过 AG-UI 响应流中的 `state_update` 通道更新共享状态：
+
+```csharp
+[Description("List today's open fulfillment exceptions.")]
+static async Task<ToolResult> ListExceptions(IAGUIContext ctx)
+{
+    var rows = ZavaData.LoadExceptions()
+        .Where(e => e["status"]!.GetValue<string>() == "open")
+        .ToList();
+
+    bool hasHigh = rows.Any(e => e["priority"]!.GetValue<string>() == "high");
+    if (hasHigh)
+        await ctx.InvokeClientToolAsync("play_alert_sound", new { reason = "high_priority_exception" });
+
+    await ctx.UpdateStateAsync(new { open_exceptions = rows });
+
+    return ToolResult.Text(
+        $"{rows.Count} open exceptions; {rows.Count(r => r["priority"]!.GetValue<string>() == "high")} high-priority.");
+}
+```
+
+`quote_freight` 从 `carriers.json` 读（carrier ID 跟验收标准对上），并将 `last_freight_quote` 写入共享状态。
+
+### Step 4 — 7 特性 → 7 组件映射
+
+| AG-UI 特性 | 服务端（.NET） | UI 组件 |
+|-------------|------------------|---------|
+| 1. Chat | `agent.RunStreamAsync(...)` | `<ChatPanel/>` |
+| 2. Backend tool rendering | `AIFunctionFactory.Create(...)` 工具 | `<ToolCallCard/>` |
+| 3. Frontend tools | `ctx.InvokeClientToolAsync("play_alert_sound", …)` | `playAlertSound()` |
+| 4. HITL | `IWorkflowContext.RequestInfoAsync(...)`（LAB 4） | `<ApprovalDialog/>` |
+| 5. Generative UI | `tool_result` 携带类型化 payload | `<DynamicCard/>` |
+| 6. Shared state | `ctx.UpdateStateAsync(...)` | `<StatePanel/>` |
+| 7. Predictive state | `PredictStateConfig` | `<KpiTicker/>` |
+
+在 `frontend/README.md` 里像 Python 赛道一样记载（真的写 React App 仍不在本 LAB 范围）。
+
+### Step 5 — 运行 + 烟雾
+
+```bash
+# terminal 1
+export AG_UI_API_KEY=zava-control-tower-demo-key
+dotnet run --project workshop/LAB05-control-tower-agui/ControlTower
+
+# terminal 2
+export AG_UI_API_KEY=zava-control-tower-demo-key
+dotnet run --project workshop/LAB05-control-tower-agui/ControlTowerSmoke
+```
+
+验收标准适用不变。「不能写 `[{"order": "ORD-009", …}]` 占位符」这条硜规则在 C# 中同样严格 — 业务数据走 `ZavaData.LoadExceptions()` / `ZavaData.LoadCarriers()`。
 
 ---
 

@@ -1,8 +1,22 @@
 # LAB 5 — Supply-Chain Control Tower: AG-UI Frontend + Shared State + Generative UI
 
-> **Powered by SKILL**: [`agent-framework-agui-py`](../../.github/skills/agent-framework-agui-py/SKILL.md)
+> **Powered by SKILL** (pick one track):
+> - Python: [`agent-framework-agui-py`](../../.github/skills/agent-framework-agui-py/SKILL.md)
+> - .NET (C#): [`agent-framework-agui-csharp`](../../.github/skills/agent-framework-agui-csharp/SKILL.md)
+>
 > **Foundry model**: `gpt-5.5`
 > **Chinese edition**: [README.zh.md](./README.zh.md)
+
+---
+
+## Choose your stack
+
+| Track | Build artefacts | Skill files | Data helper |
+|-------|-----------------|-------------|-------------|
+| 🐍 **Python** | `server.py` + `client_smoketest.py` | [`agent-framework-agui-py/SKILL.md`](../../.github/skills/agent-framework-agui-py/SKILL.md) | [`zava_data.py`](../data/zava_data.py) |
+| 🟦 **.NET (C#)** | `ControlTower/` (ASP.NET Core) + `ControlTowerSmoke/` | [`agent-framework-agui-csharp/SKILL.md`](../../.github/skills/agent-framework-agui-csharp/SKILL.md) | [`ZavaData.cs`](../data/ZavaData.cs) |
+
+Python track is documented in [§Tasks](#tasks); .NET track is documented in [§.NET implementation path](#net-implementation-path). Both tracks listen on `http://127.0.0.1:5100/`, use `X-API-Key: zava-control-tower-demo-key`, and back the same `exceptions.json` / `carriers.json` / `orders.json` fixtures.
 
 ---
 
@@ -217,6 +231,106 @@ Write a mapping table from the 7 AG-UI features to 7 UI components, e.g.:
 - [ ] One `quote_freight` call **simultaneously**: gives the model a "Found N quotes for X→Y" summary, populates `last_freight_quote` in shared state with rows whose `carrier` matches `carriers.json` (`FEDEX` / `DHL` / `USPS` / `ARAMEX` / `SFEXPRESS`), and gives the frontend component a `tool_result`.
 - [ ] `frontend/README.md` contains the complete 7-feature → 7-component mapping.
 - [ ] `server.py` contains **no `[{"order": "ORD-009", ...}]` placeholder** — `list_exceptions` and `quote_freight` both read through `zava_data.load_exceptions` / `zava_data.load_carriers`.
+
+---
+
+## .NET implementation path
+
+Same seven AG-UI features, same shared state, same API key, same client smoke test.
+
+### Step 1 — Invoke the Coding Agent (C#)
+
+```
+@zavashop-coding-agent I'm doing LAB 5 in C# — expose the LAB 4 fulfillment workflow over AG-UI so the control tower can drive it.
+```
+
+It will create two projects under [`workshop/LAB05-control-tower-agui/`](.):
+
+- `ControlTower/` — an ASP.NET Core minimal host that pulls in the LAB 4 workflow (`fulfillmentAgent`), wraps it with `MapAGUI(agent)` from `Microsoft.Agents.AI.Hosting.AGUI.AspNetCore`, and gates the endpoint with the `X-API-Key` header.
+- `ControlTowerSmoke/` — console smoke client built on `AGUIChatClient`.
+
+Both csproj files link `..\..\data\ZavaData.cs`.
+
+### Step 2 — Mount the workflow as an AG-UI endpoint (C#)
+
+```csharp
+using Microsoft.Agents.AI;
+using Microsoft.Agents.AI.Hosting.AGUI.AspNetCore;
+
+var builder = WebApplication.CreateBuilder(args);
+builder.Services.AddAGUI();
+
+var app = builder.Build();
+
+app.Use(async (ctx, next) =>
+{
+    var expected = Environment.GetEnvironmentVariable("AG_UI_API_KEY")!;
+    if (ctx.Request.Headers["X-API-Key"] != expected)
+    {
+        ctx.Response.StatusCode = StatusCodes.Status401Unauthorized;
+        return;
+    }
+    await next();
+});
+
+AIAgent controlTower = FulfillmentWorkflowFactory.BuildAgent();   // from LAB 4
+app.MapAGUI("/", controlTower);
+
+app.Run("http://127.0.0.1:5100");
+```
+
+### Step 3 — Server-side tools that write shared state (C#)
+
+`list_exceptions` and `quote_freight` go through `ZavaData`, and they update shared state via the `state_update` channel of the AG-UI response stream:
+
+```csharp
+[Description("List today's open fulfillment exceptions.")]
+static async Task<ToolResult> ListExceptions(IAGUIContext ctx)
+{
+    var rows = ZavaData.LoadExceptions()
+        .Where(e => e["status"]!.GetValue<string>() == "open")
+        .ToList();
+
+    bool hasHigh = rows.Any(e => e["priority"]!.GetValue<string>() == "high");
+    if (hasHigh)
+        await ctx.InvokeClientToolAsync("play_alert_sound", new { reason = "high_priority_exception" });
+
+    await ctx.UpdateStateAsync(new { open_exceptions = rows });
+
+    return ToolResult.Text(
+        $"{rows.Count} open exceptions; {rows.Count(r => r["priority"]!.GetValue<string>() == "high")} high-priority.");
+}
+```
+
+`quote_freight` reads from `carriers.json` (carrier IDs match the acceptance bullet) and writes `last_freight_quote` into shared state.
+
+### Step 4 — The seven feature → component map
+
+| AG-UI feature | Server lever (.NET) | UI component |
+|---------------|---------------------|--------------|
+| 1. Chat | `agent.RunStreamAsync(...)` | `<ChatPanel/>` |
+| 2. Backend tool rendering | `AIFunctionFactory.Create(...)` tools | `<ToolCallCard/>` |
+| 3. Frontend tools | `ctx.InvokeClientToolAsync("play_alert_sound", …)` | `playAlertSound()` |
+| 4. HITL | `IWorkflowContext.RequestInfoAsync(...)` (LAB 4) | `<ApprovalDialog/>` |
+| 5. Generative UI | `tool_result` with a typed payload | `<DynamicCard/>` |
+| 6. Shared state | `ctx.UpdateStateAsync(...)` | `<StatePanel/>` |
+| 7. Predictive state | `PredictStateConfig` | `<KpiTicker/>` |
+
+Document it in `frontend/README.md` exactly like the Python track does. (Writing the React app is still out of scope.)
+
+### Step 5 — Run + smoke
+
+```bash
+# terminal 1
+export AG_UI_API_KEY=zava-control-tower-demo-key
+dotnet run --project workshop/LAB05-control-tower-agui/ControlTower
+
+# terminal 2
+export AG_UI_API_KEY=zava-control-tower-demo-key
+dotnet run --project workshop/LAB05-control-tower-agui/ControlTowerSmoke
+```
+
+The acceptance criteria apply unchanged. The hard rule about **no `[{"order": "ORD-009", …}]` placeholder** is the same in C# — every business datum must come through `ZavaData.LoadExceptions()` / `ZavaData.LoadCarriers()`.
 
 ---
 

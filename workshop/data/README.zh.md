@@ -21,11 +21,14 @@
 | `carriers.json` | LAB04、LAB05 | 5 家货代（FedEx / DHL / USPS / Aramex / 顺丰），含线路覆盖与运费率。 |
 | `exceptions.json` | LAB05 | 4 个未关闭的异常单，供控制塔 `list_exceptions` 工具返回。 |
 | `eval_queries.jsonl` | LAB03 | 5 条评估提示词，含期望工具与期望结果，可直接喂给 `evaluate_agent`。 |
-| `zava_data.py` | 所有 LAB | 数据加载模块，提供 `load_*()` 与便捷查找函数（`find_stock` / `find_po` / `find_supplier` / `find_contract` / `find_customer` / `find_order`）。 |
+| `zava_data.py` | 所有 Python LAB | 数据加载模块，提供 `load_*()` 与便捷查找函数（`find_stock` / `find_po` / `find_supplier` / `find_contract` / `find_customer` / `find_order`）。 |
+| `ZavaData.cs` | 所有 .NET LAB | .NET 赛道的加载模块 — 镜像 `zava_data.py`。提供静态 `Load*()`（返回 `JsonArray`）与 `Find*()`（返回 `JsonNode?`），名命空间 `ZavaShop.Workshop.Data`。每个 LAB 的 `.csproj` 通过 `<Compile Include="..\data\ZavaData.cs" Link="ZavaData.cs" />` 引入。 |
 
 ## LAB 如何使用
 
 每个 LAB 脚本都应把 `workshop/data/` 加入 import 路径，调用 loader 而不要再写一份 mock：
+
+### Python
 
 ```python
 import sys
@@ -34,6 +37,30 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "data"))
 from zava_data import find_stock, find_po, load_customers
 ```
+
+### .NET（C#）
+
+在 LAB 的 csproj 里Link入共享 helper 后直接使用：
+
+```xml
+<ItemGroup>
+  <Compile Include="..\..\data\ZavaData.cs" Link="ZavaData.cs" />
+</ItemGroup>
+```
+
+```csharp
+using ZavaShop.Workshop.Data;
+
+var stock = ZavaData.FindStock("SKU-7421", "SEA-01");
+int onHand = stock?["on_hand"]?.GetValue<int>() ?? 0;   // 312
+
+foreach (var po in ZavaData.LoadPurchaseOrders())
+{
+    Console.WriteLine(po["po_number"] + " → " + po["status"]);
+}
+```
+
+> 两个 helper 包装的是同一份 JSON，请保持同步。新增 fixture 时要同时暴露在 `zava_data.py` 与 `ZavaData.cs`。
 
 这样：
 

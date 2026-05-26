@@ -1,7 +1,21 @@
 # LAB 4 — 订单履约调度：多 Agent Workflow + HITL + Checkpoint
 
-> **由 SKILL 协助**：[`agent-framework-workflows-py`](../../.github/skills/agent-framework-workflows-py/SKILL.md)
+> **由 SKILL 协助**（任选一个赛道）：
+> - Python：[`agent-framework-workflows-py`](../../.github/skills/agent-framework-workflows-py/SKILL.md)
+> - .NET（C#）：[`agent-framework-workflows-csharp`](../../.github/skills/agent-framework-workflows-csharp/SKILL.md)
+>
 > **Foundry 模型**：`gpt-5.5`
+
+---
+
+## 选择你的技术栈
+
+| 赛道 | 交付物 | 需要加载的 Skill | 数据 helper |
+|------|--------|---------------------|---------------|
+| 🐍 **Python** | `fulfillment_workflow.py` | [`agent-framework-workflows-py/SKILL.md`](../../.github/skills/agent-framework-workflows-py/SKILL.md) | [`zava_data.py`](../data/zava_data.py) |
+| 🟦 **.NET（C#）** | `FulfillmentWorkflow/` | [`agent-framework-workflows-csharp/SKILL.md`](../../.github/skills/agent-framework-workflows-csharp/SKILL.md) | [`ZavaData.cs`](../data/ZavaData.cs) |
+
+Python 赛道在 [§任务清单](#任务清单)；.NET 赛道在 [§.NET 实现赛道](#net-实现赛道)。同一份 fixture（`orders.json` / `inventory.json` / `carriers.json` / `warehouses.json`）、同一个 $1000 的审批阈值、同一组场景 A（`ORD-20260524-001`, $196.50）与 B（`ORD-20260524-002`, $1500）。
 
 ---
 
@@ -216,6 +230,107 @@ async for event in run:
 - [ ] checkpoint 目录下生成多个 superstep 文件；断点续跑能从中点恢复，没有重复扣库存。
 - [ ] `fulfillment_agent = workflow.as_agent()` 可被外部代码当作普通 Agent 调用（拿到一段总结性回复）。
 - [ ] `intake` 通过 `find_order` 解析订单（不做自由文本 parse）；`quote_freight` 返回的行由 `carriers.json` 生成，承运商 ID 能在 `FEDEX` / `DHL` / `USPS` / `ARAMEX` / `SFEXPRESS` 中抓到。
+
+---
+
+## .NET 实现赛道
+
+同一个 DAG、同一个 HITL 闸门、同一个 checkpoint 断点续跑。
+
+### Step 1 — 调用 Coding Agent（C#）
+
+```
+@zavashop-coding-agent I'm doing LAB 4 in C# — build the order-fulfillment workflow with HITL approval and checkpoint resume.
+```
+
+会在 [`workshop/LAB04-fulfillment-workflow/`](.) 下创建 `FulfillmentWorkflow/`，link `..\..\data\ZavaData.cs`，依赖：`Microsoft.Agents.AI`、`Microsoft.Agents.AI.Workflows`、`Microsoft.Agents.AI.Foundry`、`Azure.AI.Projects`、`Azure.Identity`。
+
+### Step 2 — 用 `WorkflowBuilder` 搭 DAG
+
+```csharp
+using Microsoft.Agents.AI.Workflows;
+using Microsoft.Agents.AI.Workflows.Checkpointing;
+using ZavaShop.Workshop.Data;
+
+var workflow = new WorkflowBuilder()
+    .AddExecutor<OrderId, OrderRecord>("intake",        IntakeAsync)
+    .AddExecutor<OrderRecord, StockResult>("stock_check",  StockCheckAsync)
+    .AddExecutor<OrderRecord, QuoteResult>("shipping_quote", ShippingQuoteAsync)
+    .AddExecutor<(StockResult, QuoteResult), AllocationPlan>("allocation", AllocateAsync)
+    .AddExecutor<AllocationPlan, ApprovalDecision>("approval", ApprovalAsync)
+    .AddExecutor<ApprovalDecision, DispatchResult>("dispatch", DispatchAsync)
+    .AddExecutor<DispatchResult, FinanceResult>("finance", FinanceAsync)
+    .AddEdge("intake", "stock_check")
+    .AddEdge("intake", "shipping_quote")               // fan-out
+    .AddFanInEdge(["stock_check", "shipping_quote"], "allocation")
+    .AddEdge("allocation", "approval")
+    .AddEdge("approval",   "dispatch")
+    .AddEdge("dispatch",   "finance")
+    .SetStartExecutor("intake")
+    .WithCheckpointing(new FileCheckpointStorage("./_checkpoints"))
+    .Build();
+```
+
+### Step 3 — `approval` 节点里接 HITL
+
+```csharp
+static async Task<ApprovalDecision> ApprovalAsync(AllocationPlan plan, IWorkflowContext ctx)
+{
+    if (plan.TotalUsd < 1000m)
+        return new ApprovalDecision(true, "auto-approved (<$1000)");
+
+    var hitl = await ctx.RequestInfoAsync<HumanApprovalRequest, HumanApprovalResponse>(
+        new HumanApprovalRequest(plan.OrderId, plan.TotalUsd, plan.Reason));
+
+    return new ApprovalDecision(hitl.Approve, hitl.Comment);
+}
+```
+
+外层事件循环抓 `RequestInfoEvent`，在控制台提示操作员，然后 `workflow.SendResponseAsync(...)` — 与 Python 的 `ctx.request_info(...)` 同形。
+
+### Step 4 — `intake` 与 `shipping_quote` 走 `ZavaData`
+
+```csharp
+static Task<OrderRecord> IntakeAsync(OrderId id, IWorkflowContext ctx)
+{
+    var order = ZavaData.FindOrder(id.Value)
+                ?? throw new InvalidOperationException($"Unknown order {id.Value}");
+    return Task.FromResult(OrderRecord.FromJson(order));
+}
+
+static Task<QuoteResult> ShippingQuoteAsync(OrderRecord order, IWorkflowContext ctx)
+{
+    var quotes = ZavaData.LoadCarriers()
+        .Select(c => new CarrierQuote(
+            CarrierId: c["carrier_id"]!.GetValue<string>(),
+            EtaDays:   c["avg_lead_time_days"]!.GetValue<int>(),
+            PriceUsd:  Pricing.Quote(order, c)))
+        .OrderBy(q => q.PriceUsd)
+        .ToList();
+    return Task.FromResult(new QuoteResult(quotes));
+}
+```
+
+不允许内联 carrier 表 — 必须走 `ZavaData.LoadCarriers()`，这样 `FEDEX` / `DHL` / `USPS` / `ARAMEX` / `SFEXPRESS` ID 才跟验收标准对上。
+
+### Step 5 — 把整个 workflow 包为一个 Agent（C#）
+
+```csharp
+AIAgent fulfillmentAgent = workflow.AsAgent(
+    name: "FulfillmentOrchestrator",
+    description: "Drives a ZavaShop order from intake to finance, with HITL approval above $1000.");
+```
+
+`fulfillmentAgent` 可以被 LAB 5 当作子 Agent 使用。
+
+### Step 6 — 运行 + 断点续跑
+
+```bash
+dotnet run --project workshop/LAB04-fulfillment-workflow/FulfillmentWorkflow -- ORD-20260524-001
+dotnet run --project workshop/LAB04-fulfillment-workflow/FulfillmentWorkflow -- ORD-20260524-002
+```
+
+在场景 B 审批环节按 `Ctrl+C`；记录打印出的 `checkpoint_id`；重跑时加 `-- ORD-20260524-002 --resume <id>`，确认从中断点继续跑且库存 **不会重复扣减**。验收标准适用不变。
 
 ---
 

@@ -1,8 +1,22 @@
 # LAB 2 — Procurement Agent Pierre: Foundry Toolbox + Agent Skills + Thread
 
-> **Powered by SKILL**: [`agent-framework-azure-ai-py`](../../.github/skills/agent-framework-azure-ai-py/SKILL.md)
+> **Powered by SKILL** (pick one track):
+> - Python: [`agent-framework-azure-ai-py`](../../.github/skills/agent-framework-azure-ai-py/SKILL.md)
+> - .NET (C#): [`agent-framework-azure-ai-csharp`](../../.github/skills/agent-framework-azure-ai-csharp/SKILL.md)
+>
 > **Foundry model**: `gpt-5.5`
 > **Chinese edition**: [README.zh.md](./README.zh.md)
+
+---
+
+## Choose your stack
+
+| Track | Build artefacts | Skill files | Data helper |
+|-------|-----------------|-------------|-------------|
+| 🐍 **Python** | `bootstrap_toolbox.py` + `pierre_agent.py` | [`agent-framework-azure-ai-py/SKILL.md`](../../.github/skills/agent-framework-azure-ai-py/SKILL.md) + [`references/foundry-toolbox.md`](../../.github/skills/agent-framework-azure-ai-py/references/foundry-toolbox.md) + [`references/skills.md`](../../.github/skills/agent-framework-azure-ai-py/references/skills.md) + [`references/threads.md`](../../.github/skills/agent-framework-azure-ai-py/references/threads.md) | [`zava_data.py`](../data/zava_data.py) |
+| 🟦 **.NET (C#)** | `BootstrapToolbox/` + `PierreAgent/` | [`agent-framework-azure-ai-csharp/SKILL.md`](../../.github/skills/agent-framework-azure-ai-csharp/SKILL.md) + [`references/foundry-toolbox.md`](../../.github/skills/agent-framework-azure-ai-csharp/references/foundry-toolbox.md) + [`references/skills.md`](../../.github/skills/agent-framework-azure-ai-csharp/references/skills.md) + [`references/threads.md`](../../.github/skills/agent-framework-azure-ai-csharp/references/threads.md) | [`ZavaData.cs`](../data/ZavaData.cs) |
+
+The Python track is documented in [§Tasks](#tasks); the .NET track is documented in [§.NET implementation path](#net-implementation-path).
 
 ---
 
@@ -199,6 +213,103 @@ python pierre_agent.py
 - [ ] Turn 3 is stopped by `submit_po`'s own contract-cap check (`[REJECTED] PO total $125,000 exceeds contract CT-2026-Q1-YIWU ceiling $100,000`), the model picks an alternative path (e.g. suggests splitting the order), and **no PO is actually submitted**.
 - [ ] The whole flow uses exactly one `FoundryChatClient` and one thread — no `AzureAIAgentsProvider` is spawned.
 - [ ] `pierre_agent.py` contains **no inline supplier / contract dict** — supplier and contract data are read through `zava_data.find_supplier` / `zava_data.find_contract`.
+
+---
+
+## .NET implementation path
+
+Same story, same fixtures (`suppliers.json`, `contracts.json`, `skus.json`), same `CT-2026-Q1-YIWU` $100k ceiling.
+
+### Step 1 — Invoke the Coding Agent (C#)
+
+```
+@zavashop-coding-agent I'm doing LAB 2 in C# — build the ZavaShop procurement agent Pierre with a Foundry Toolbox + an Agent Skill that requires approval.
+```
+
+It will create two console projects under [`workshop/LAB02-procurement-toolbox/`](.):
+
+- `BootstrapToolbox/` — one-shot setup that calls `AgentToolboxes.CreateToolboxVersionAsync(...)` to publish the `zavashop-procurement` Toolbox with 2 MCP tools and `RequireApproval = false`.
+- `PierreAgent/` — main app: `AIProjectClient.AsAIAgent(...)` + a hosted MCP tool aimed at the Toolbox URL + an `AgentInlineSkill("procurement_actions")` wired through `AgentSkillsProvider` with `RequireScriptApproval = true` + a 3-turn `AgentSession`.
+
+Both csproj files link `..\..\data\ZavaData.cs`.
+
+### Step 2 — PO submission with two layers of guardrail (C#)
+
+The `submit_po` script in the inline skill enforces the contract cap **before** asking for approval:
+
+```csharp
+using System.ComponentModel;
+using Microsoft.Agents.AI;
+using ZavaShop.Workshop.Data;
+
+[Description("Submit a purchase order for an approved supplier.")]
+static string SubmitPo(
+    [Description("Supplier id or name.")] string supplier,
+    [Description("SKU id, e.g. SKU-3055.")] string sku,
+    [Description("Quantity.")] int qty,
+    [Description("Unit price in USD.")] double unitPrice)
+{
+    var sup = ZavaData.FindSupplier(supplier);
+    if (sup is null) return $"[REJECTED] Unknown supplier '{supplier}'.";
+
+    var contract = ZavaData.FindContract(sup["supplier_id"]!.GetValue<string>());
+    var total = qty * unitPrice;
+    if (contract is not null &&
+        total > contract["max_single_po_usd"]!.GetValue<double>())
+    {
+        return $"[REJECTED] PO total ${total:N0} exceeds contract " +
+               $"{contract["contract_id"]} ceiling ${contract["max_single_po_usd"]:N0}. " +
+               "Suggest splitting into multiple POs.";
+    }
+
+    return $"[OK] Submitted PO supplier={sup["name"]} ({sup["supplier_id"]}) sku={sku} " +
+           $"qty={qty} unit_price={unitPrice} total=${total:N0}";
+}
+
+var procurementSkill = new AgentInlineSkill(
+    name: "procurement_actions",
+    description: "Submit / modify Purchase Orders for approved suppliers.",
+    instructions: "Use submit_po to submit a PO. Before submitting, confirm SKU, quantity " +
+                  "and unit price, and ALWAYS look up the supplier's contract first — if the " +
+                  "order exceeds max_single_po_usd, propose splitting the order instead of " +
+                  "forcing it through.",
+    scripts: [AIFunctionFactory.Create(SubmitPo)]);
+```
+
+Attach it through `AgentSkillsProvider(requireScriptApproval: true)` and pass the provider in via `ChatClientAgentOptions.ContextProviders`.
+
+### Step 3 — Three-turn run + approval capture
+
+In the run loop, capture `FunctionApprovalRequestContent` from the response stream and auto-approve only when `total < $100,000` AND below the supplier's contract cap. Reject otherwise, citing the contract id.
+
+```csharp
+AgentSession session = await agent.CreateSessionAsync();
+
+string[] queries =
+[
+    "What is the latest contract with SUP-001 (YiwuClay)? Quote me the negotiated unit price for SKU-3055.",
+    "Good. Submit a PO to SUP-001 for SKU-3055 x 200 at the negotiated price.",
+    "Add another one: same supplier, SKU-7421 x 5000 units at $25 each.",
+];
+
+foreach (var q in queries)
+{
+    AgentResponse response = await agent.RunAsync(q, session);
+    // … walk response.UserInputRequests and respond with approve / reject.
+}
+```
+
+### Step 4 — Run it
+
+```bash
+dotnet run --project workshop/LAB02-procurement-toolbox/BootstrapToolbox     # one-off
+dotnet run --project workshop/LAB02-procurement-toolbox/PierreAgent
+```
+
+The acceptance criteria above still apply. Two .NET-specific notes:
+
+- Use **exactly one** `AIProjectClient` and one `AgentSession`. Do not create a persistent `FoundryAgent` per request.
+- Reject any code that bypasses `RequireScriptApproval = true` to make the third turn "go through" — the $125k case must trip `submit_po`'s contract-cap branch and never get approved.
 
 ---
 
