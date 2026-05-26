@@ -70,11 +70,15 @@ CTO 直接指定：
 
 ## 任务清单
 
-### Step 1 — 调用 ZavaShop Coding Agent
+### Step 1 — 在 Agent Mode 里选中 ZavaShop Coding Agent
+
+在 VS Code Copilot Chat 切到 **Agent Mode**，打开 Agent 选择器，选中 **`zavashop-coding-agent`**，然后发送一条同时点明 LAB 编号和 **使用的编程语言** 的消息：
 
 ```
-@zavashop-coding-agent I'm doing LAB 3 — build the ZavaShop concierge Aria with Foundry Memory + run FoundryEvals + a Red-Team scan.
+I'm doing LAB 3 in Python — build the ZavaShop concierge Aria with Foundry Memory + run FoundryEvals + a Red-Team scan.
 ```
+
+> 不要再用 `@zavashop-coding-agent` 这种写法 —— Coding Agent 是从下拉里选的，对话框里只写任务描述（含 LAB 号 + 语言）。
 
 Coding Agent 会：
 
@@ -253,10 +257,12 @@ print(json.dumps(results.to_scorecard(), indent=2))
 
 > 范围：**仅记忆**。评估 + 红队那两条验收指标复用 Python 脚本，击打 C# Agent 暴露的 HTTP endpoint。
 
-### Step 1 — 调用 Coding Agent（C#）
+### Step 1 — 在 Agent Mode 里选中 ZavaShop Coding Agent（C#）
+
+在 VS Code Copilot Chat → **Agent Mode** → Agent 选择器 → **`zavashop-coding-agent`**，然后发送：
 
 ```
-@zavashop-coding-agent I'm doing LAB 3 in C# — build the Aria customer concierge agent with Foundry Memory; eval and red-team will reuse the Python scripts against the C# agent's endpoint.
+I'm doing LAB 3 in C# — build the Aria customer concierge agent with Foundry Memory; eval and red-team will reuse the Python scripts against the C# agent's endpoint.
 ```
 
 会在 [`workshop/LAB03-customer-memory-eval/`](.) 下创建 `AriaAgent/`，link `..\..\data\ZavaData.cs`，依赖为：`Microsoft.Agents.AI`、`Microsoft.Agents.AI.Foundry`、`Microsoft.Agents.AI.Foundry.Memory`、`Azure.AI.Projects`、`Azure.Identity`。

@@ -23,6 +23,12 @@ dist/
 build/
 .next/
 
+# .NET (LAB01-05 C# projects)
+**/bin/
+**/obj/
+*.user
+*.suo
+
 # Editor / OS
 .vscode/
 .idea/

@@ -75,39 +75,58 @@ Agent Framework topics involved in this LAB (Copilot already has them offline in
 
 ## Tasks
 
-### Step 1 — Invoke the ZavaShop Coding Agent
+### Step 1 — Pick the ZavaShop Coding Agent in Agent Mode
 
-In Copilot Chat (Agent mode), type:
+In VS Code Copilot Chat, switch to **Agent Mode**, open the agent picker, and select **`zavashop-coding-agent`**. Then send a prompt that names the LAB **and** the language you want:
 
 ```
-@zavashop-coding-agent I'm doing LAB 1 — build the ZavaShop inventory agent Zara.
+I'm doing LAB 1 in Python — build the ZavaShop inventory agent Zara.
 ```
+
+> Do not prefix the message with `@zavashop-coding-agent`. The agent is chosen from the Agent Mode dropdown; the chat text is just your task description.
 
 The Coding Agent will follow its 7-step loop automatically:
 
 1. `read_file` [`.github/skills/agent-framework-azure-ai-py/SKILL.md`](../../.github/skills/agent-framework-azure-ai-py/SKILL.md), then load [`references/tools.md`](../../.github/skills/agent-framework-azure-ai-py/references/tools.md), [`references/mcp.md`](../../.github/skills/agent-framework-azure-ai-py/references/mcp.md), [`references/threads.md`](../../.github/skills/agent-framework-azure-ai-py/references/threads.md) as needed.
 2. `read_file` this LAB README.
 3. Create `zara_agent.py` under [`workshop/LAB01-inventory-agent/`](.):
-   - `AzureAIAgentsProvider` + `AzureCliCredential` + `async with`
-   - Model name read from `os.environ["FOUNDRY_MODEL"]` (already set to `gpt-5.5`)
-   - Tools: `get_stock(sku, warehouse)` + `get_po_status(po_number)` + `HostedMCPTool` pointed at `https://learn.microsoft.com/api/mcp`
-   - `AgentThread` running a 3-turn conversation
+   - `Agent` + `FoundryChatClient` + `AzureCliCredential` + `async with` (the supported pattern in the installed `agent-framework`; `AzureAIAgentsProvider` is documented in the SKILL but not exported in the current prerelease build).
+   - Endpoint + model name loaded from [`workshop/.env`](../.env) via a small `load_env()` helper, then read from `os.environ["FOUNDRY_PROJECT_ENDPOINT"]` / `os.environ["FOUNDRY_MODEL"]`.
+   - Tools: `get_stock(sku, warehouse)` + `get_po_status(po_number)` + `find_open_pos_by_sku(sku, warehouse=None)` + an `MCPStreamableHTTPTool` pointed at `https://learn.microsoft.com/api/mcp`.
+   - An `AgentSession` (via `agent.create_session()`) running a 3-turn conversation.
 4. `get_errors` for syntax, then `runCommands` to smoke-test `python zara_agent.py`.
 5. Tick off each acceptance criterion below.
 
-> If you'd rather write the code by hand, you can — and then ask `@zavashop-coding-agent` to run steps 6 and 7 only.
+> If you'd rather write the code by hand, you can — and then re-select `zavashop-coding-agent` in Agent Mode to run steps 6 and 7 only.
 
-### Step 2 — Implement the two function tools
+### Step 2 — Implement the function tools + a small `load_env()` helper
 
-In `zara_agent.py`, implement (Copilot should follow the SKILL and produce typed signatures + docstrings):
+In `zara_agent.py`, implement the data-backed tools and a helper that reads [`workshop/.env`](../.env) into `os.environ` so the script picks up `FOUNDRY_PROJECT_ENDPOINT` and `FOUNDRY_MODEL` without you having to `export` them in every shell:
 
 ```python
+import os
 import sys
 from pathlib import Path
 
 # Make the shared fixtures importable
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "data"))
-from zava_data import find_stock, find_po
+from zava_data import find_po, find_stock, load_purchase_orders
+
+
+def load_env() -> None:
+    """Load workshop/.env into process environment when available."""
+    env_path = Path(__file__).resolve().parents[1] / ".env"
+    if not env_path.exists():
+        return
+    for line in env_path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        key = key.strip()
+        value = value.strip().strip('"').strip("'")
+        if key and key not in os.environ:
+            os.environ[key] = value
 
 
 def get_stock(sku: str, warehouse: str = "SEA-01") -> str:
@@ -127,57 +146,83 @@ async def get_po_status(po_number: str) -> dict:
     if po is None:
         return {"po_number": po_number, "status": "unknown"}
     return po
+
+
+def find_open_pos_by_sku(sku: str, warehouse: str | None = None) -> list[dict]:
+    """List open (not-yet-delivered) POs for a SKU, newest ETA first."""
+    open_pos = [
+        po
+        for po in load_purchase_orders()
+        if po["sku"] == sku
+        and po["status"] != "delivered"
+        and (warehouse is None or po["destination_warehouse"] == warehouse)
+    ]
+    open_pos.sort(key=lambda po: po["eta"], reverse=True)
+    return open_pos
 ```
 
 > **Do not inline mock dicts.** Every lookup comes from the shared fixtures under [`workshop/data/`](../data/README.md), so every LAB agrees on what `SKU-7421 @ SEA-01` means. To extend the dataset, edit those JSON files — not the Python.
+
+> **Why a third tool?** Turn 2 asks for the most recent open PO for the SKU mentioned in Turn 1. `get_po_status` only resolves a *known* PO number, so without `find_open_pos_by_sku` the model has no way to enumerate open POs. Adding it keeps Zara honest to the rule "answer using real data from the tools".
 
 The fixtures already cover `SKU-7421`, `SKU-3055`, `PO-20260518-001`, `PO-20260519-007` (the IDs Mei asks about), so you can run the conversation in Step 4 against real data right away.
 
 ### Step 3 — Create the agent and mount the MCP tool
 
+The Microsoft Agent Framework SDK currently shipped on PyPI exposes `Agent` + `FoundryChatClient` (from `agent_framework.foundry`) and `MCPStreamableHTTPTool` (from `agent_framework`). Use those as the primary path — the `AzureAIAgentsProvider` / `HostedMCPTool` snippets in the SKILL are kept for reference but are not exported in the current prerelease.
+
 ```python
-from agent_framework import HostedMCPTool, ChatAgent
-from agent_framework.azure import AzureAIAgentsProvider
+from agent_framework import Agent, MCPStreamableHTTPTool
+from agent_framework.foundry import FoundryChatClient
 from azure.identity.aio import AzureCliCredential
+
+load_env()
+endpoint = os.environ["FOUNDRY_PROJECT_ENDPOINT"]
+model    = os.environ["FOUNDRY_MODEL"]
 
 async with (
     AzureCliCredential() as credential,
-    AzureAIAgentsProvider(async_credential=credential) as provider,
-):
-    async with provider.create_agent(
+    MCPStreamableHTTPTool(
+        name="learn-mcp",
+        url="https://learn.microsoft.com/api/mcp",
+    ) as learn_mcp,
+    Agent(
+        client=FoundryChatClient(
+            project_endpoint=endpoint,
+            model=model,
+            credential=credential,
+        ),
         name="Zara",
         instructions=(
             "You are Zara, the warehouse assistant for ZavaShop's Seattle fulfillment center. "
-            "Always answer using real data from the tools — never make up stock numbers."
+            "Always answer using real data from the tools and never invent stock or PO numbers. "
+            "To find the latest unarrived PO for a SKU, call find_open_pos_by_sku first, then "
+            "get_po_status for fuller detail."
         ),
-        tools=[
-            get_stock,
-            get_po_status,
-            HostedMCPTool(
-                name="learn-mcp",
-                url="https://learn.microsoft.com/api/mcp",
-            ),
-        ],
-    ) as agent:
-        ...
+        tools=[get_stock, get_po_status, find_open_pos_by_sku, learn_mcp],
+    ) as agent,
+):
+    ...
 ```
 
-### Step 4 — Run a 3-turn conversation on a Thread
+### Step 4 — Run a 3-turn conversation on an `AgentSession`
 
 Mimic Mei's real-world flow (the questions must be asked in order to verify the agent keeps context):
 
 ```python
-thread = agent.get_new_thread()
+session = agent.create_session()
 
 # Turn 1: ask about stock directly
-await agent.run("How many SKU-7421 do we have left at SEA-01?", thread=thread)
+await agent.run("How many SKU-7421 do we have left at SEA-01?", session=session)
 
 # Turn 2: follow-up that does NOT repeat the SKU (must inherit it from context)
-await agent.run("What is the most recent PO for that SKU that hasn't arrived yet?", thread=thread)
+await agent.run("What is the most recent PO for that SKU that hasn't arrived yet?", session=session)
 
 # Turn 3: call the MCP
-await agent.run("Search the Microsoft Learn MCP for best practices on Azure AI Foundry.", thread=thread)
+await agent.run("Search the Microsoft Learn MCP for best practices on Azure AI Foundry.", session=session)
 ```
+
+> The session object replaces the older `AgentThread`/`get_new_thread()` API mentioned in the SKILL — both serve the same role (server-side conversation persistence).
 
 ### Step 5 — Run it
 
@@ -190,11 +235,12 @@ python zara_agent.py
 
 ## Acceptance criteria
 
-- [ ] The console shows three replies, and Turn 2 succeeds without you repeating the SKU.
+- [ ] The console shows three replies, and Turn 2 succeeds without you repeating the SKU (the `AgentSession` carries the context).
 - [ ] The stock and PO numbers in Turns 1 and 2 match the fixtures (`SKU-7421 @ SEA-01 = 312 on-hand`; `PO-20260518-001` is `in_transit` with ETA `2026-05-26`) — this proves the tools were really called and that no agent hallucinated the numbers.
 - [ ] The Turn 3 reply clearly contains Microsoft Learn content (proves the MCP was called).
-- [ ] No manual `close()` anywhere — everything goes through `async with`.
-- [ ] `zara_agent.py` contains **no inline mock dict** — stock / PO data is read through `zava_data.find_stock` / `zava_data.find_po`.
+- [ ] `FOUNDRY_PROJECT_ENDPOINT` / `FOUNDRY_MODEL` are read from `os.environ` after `load_env()`; nothing is hardcoded.
+- [ ] No manual `close()` anywhere — credential, MCP tool and agent all go through `async with`.
+- [ ] `zara_agent.py` contains **no inline mock dict** — stock / PO data is read through `zava_data.find_stock` / `zava_data.find_po` / `zava_data.load_purchase_orders`.
 
 ---
 
@@ -202,20 +248,25 @@ python zara_agent.py
 
 For learners on the .NET track. Same story, same fixtures, same acceptance criteria.
 
-### Step 1 — Invoke the ZavaShop Coding Agent (C#)
+### Step 1 — Pick the ZavaShop Coding Agent in Agent Mode (C#)
+
+In VS Code Copilot Chat → **Agent Mode** → agent picker → **`zavashop-coding-agent`**, then send:
 
 ```
-@zavashop-coding-agent I'm doing LAB 1 in C# — build the ZavaShop inventory agent Zara.
+I'm doing LAB 1 in C# — build the ZavaShop inventory agent Zara.
 ```
+
+> Do not prefix with `@zavashop-coding-agent` — the language is what tells the agent which SKILL to load.
 
 The Coding Agent will:
 
 1. `read_file` [`.github/skills/agent-framework-azure-ai-csharp/SKILL.md`](../../.github/skills/agent-framework-azure-ai-csharp/SKILL.md) and pull [`references/tools.md`](../../.github/skills/agent-framework-azure-ai-csharp/references/tools.md), [`references/mcp.md`](../../.github/skills/agent-framework-azure-ai-csharp/references/mcp.md), [`references/threads.md`](../../.github/skills/agent-framework-azure-ai-csharp/references/threads.md).
 2. `read_file` this LAB README.
-3. Create `ZaraAgent/` under [`workshop/LAB01-inventory-agent/`](.): a `Microsoft.NET.Sdk` console project targeting `net10.0`, with `..\data\ZavaData.cs` linked.
-4. Tools: `GetStock(sku, warehouse)` + `GetPoStatus(po_number)` via `AIFunctionFactory.Create(...)` + a hosted MCP tool via `ResponseTool.CreateMcpTool(...)` pointed at `https://learn.microsoft.com/api/mcp`.
-5. Run a 3-turn `AgentSession` conversation.
-6. `get_errors` → `dotnet build` → `dotnet run`.
+3. Create `ZaraAgent/` under [`workshop/LAB01-inventory-agent/`](.): a `Microsoft.NET.Sdk` console project targeting `net10.0`, with `..\..\data\ZavaData.cs` linked.
+4. Tools: `GetStock(sku, warehouse)` + `GetPoStatus(po_number)` + `FindOpenPosBySku(sku, warehouse?)` via `AIFunctionFactory.Create(...)`, plus a **local MCP** tool (`McpClient` + `mcpTools.Cast<AITool>()`) pointed at `https://learn.microsoft.com/api/mcp`. Hosted MCP via `ResponseTool.CreateMcpTool(...)` is **not** usable with the stateless `AsAIAgent(model, ..., tools: [...])` overload — see [references/mcp.md](../../.github/skills/agent-framework-azure-ai-csharp/references/mcp.md).
+5. Endpoint + model are loaded from [`workshop/.env`](../.env) via a small `LoadEnv()` helper, then read from `Environment.GetEnvironmentVariable("FOUNDRY_PROJECT_ENDPOINT")` / `("FOUNDRY_MODEL")`.
+6. Run a 3-turn `AgentSession` conversation.
+7. `get_errors` → `dotnet build` → `dotnet run`.
 
 ### Step 2 — `ZaraAgent.csproj`
 
@@ -233,7 +284,7 @@ The Coding Agent will:
     <PackageReference Include="Microsoft.Extensions.AI" Version="*-*" />
     <PackageReference Include="Azure.AI.Projects" Version="*-*" />
     <PackageReference Include="Azure.Identity" Version="*" />
-    <PackageReference Include="OpenAI" Version="*-*" />
+    <PackageReference Include="ModelContextProtocol" Version="*-*" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="..\..\data\ZavaData.cs" Link="ZavaData.cs" />
@@ -241,66 +292,125 @@ The Coding Agent will:
 </Project>
 ```
 
-### Step 3 — Implement the two function tools (C#)
+> Use `ModelContextProtocol` (the local-MCP client) instead of `OpenAI` here. The hosted MCP wrapper in `OpenAI.Responses` does not satisfy the `AITool` constraint of the stateless `AsAIAgent(...)` overload — see Step 4.
+
+### Step 3 — Implement the function tools + a small `LoadEnv()` helper (C#)
 
 ```csharp
 using System.ComponentModel;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using Microsoft.Extensions.AI;
 using ZavaShop.Workshop.Data;
 
 [Description("Get current on-hand stock of a SKU in a warehouse.")]
 static string GetStock(
     [Description("SKU id, e.g. SKU-7421.")] string sku,
-    [Description("Warehouse id, e.g. SEA-01.")] string warehouse)
+    [Description("Warehouse id, e.g. SEA-01.")] string warehouse = "SEA-01")
 {
-    var row = ZavaData.FindStock(sku, warehouse);
+    JsonNode? row = ZavaData.FindStock(sku, warehouse);
     if (row is null) return $"{sku} is not tracked at warehouse {warehouse}.";
     return $"{sku} @ {warehouse}: on_hand={row["on_hand"]}, " +
            $"reserved={row["reserved"]}, reorder_point={row["reorder_point"]}";
 }
 
-[Description("Query the status of an inbound Purchase Order.")]
+[Description("Query the status of an inbound Purchase Order by its number.")]
 static string GetPoStatus(
     [Description("PO number, e.g. PO-20260518-001.")] string poNumber)
 {
-    var po = ZavaData.FindPo(poNumber);
-    return po?.ToJsonString() ?? $"{{\"po_number\":\"{poNumber}\",\"status\":\"unknown\"}}";
+    JsonNode? po = ZavaData.FindPo(poNumber);
+    return po?.ToJsonString()
+        ?? JsonSerializer.Serialize(new { po_number = poNumber, status = "unknown" });
+}
+
+[Description("List open (not-yet-delivered) Purchase Orders for a SKU, newest ETA first.")]
+static string FindOpenPosBySku(
+    [Description("SKU id, e.g. SKU-7421.")] string sku,
+    [Description("Optional warehouse id; pass an empty string to ignore.")] string warehouse = "")
+{
+    JsonArray pos = ZavaData.LoadPurchaseOrders();
+    var open = pos
+        .Where(p => p is not null
+            && p["sku"]?.GetValue<string>() == sku
+            && p["status"]?.GetValue<string>() != "delivered"
+            && (string.IsNullOrEmpty(warehouse)
+                || p["destination_warehouse"]?.GetValue<string>() == warehouse))
+        .OrderByDescending(p => p!["eta"]?.GetValue<string>(), StringComparer.Ordinal)
+        .Select(p => JsonNode.Parse(p!.ToJsonString())!)
+        .ToArray();
+    return new JsonArray(open).ToJsonString();
+}
+
+static void LoadEnv()
+{
+    DirectoryInfo? dir = new(AppContext.BaseDirectory);
+    string? envPath = null;
+    while (dir is not null)
+    {
+        string candidate = Path.Combine(dir.FullName, "workshop", ".env");
+        if (File.Exists(candidate)) { envPath = candidate; break; }
+        dir = dir.Parent;
+    }
+    if (envPath is null) return;
+
+    foreach (string raw in File.ReadAllLines(envPath))
+    {
+        string line = raw.Trim();
+        if (line.Length == 0 || line.StartsWith('#') || !line.Contains('=')) continue;
+        int eq = line.IndexOf('=');
+        string key = line[..eq].Trim();
+        string value = line[(eq + 1)..].Trim().Trim('"').Trim('\'');
+        if (key.Length > 0 && Environment.GetEnvironmentVariable(key) is null)
+            Environment.SetEnvironmentVariable(key, value);
+    }
 }
 ```
 
 > **Do not inline mock dicts.** Same rule as Python: every lookup comes through [`workshop/data/ZavaData.cs`](../data/ZavaData.cs) so all LABs agree on what `SKU-7421 @ SEA-01` means.
 
+> **Why a third tool?** Same reason as the Python track — Turn 2 asks for the most recent open PO for the SKU mentioned in Turn 1. `GetPoStatus` only resolves a *known* PO number; `FindOpenPosBySku` is what lets Zara enumerate. Without it, Turn 2 will hallucinate.
+
 ### Step 4 — Create the agent and mount the MCP tool (C#)
+
+The stateless `AIProjectClient.AsAIAgent(model, instructions, name, tools: [...])` overload accepts anything that implements `Microsoft.Extensions.AI.AITool`. Local MCP via `McpClient` returns `McpClientTool` instances that satisfy that contract; the hosted MCP wrapper `ProjectsAgentTool.AsProjectTool(ResponseTool.CreateMcpTool(...))` does **not**, so we use the local path here (mirrors the Python track's `MCPStreamableHTTPTool`):
 
 ```csharp
 using Azure.AI.Projects;
 using Azure.Identity;
 using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
-using OpenAI.Responses;
+using ModelContextProtocol.Client;
 
+LoadEnv();
 string endpoint = Environment.GetEnvironmentVariable("FOUNDRY_PROJECT_ENDPOINT")!;
 string model    = Environment.GetEnvironmentVariable("FOUNDRY_MODEL")!;
 
-var projectClient = new AIProjectClient(new Uri(endpoint), new AzureCliCredential());
+AIProjectClient projectClient = new(new Uri(endpoint), new AzureCliCredential());
 
-ProjectsAgentTool learnMcp = ProjectsAgentTool.AsProjectTool(
-    ResponseTool.CreateMcpTool(
-        serverLabel: "learn-mcp",
-        serverUri: new Uri("https://learn.microsoft.com/api/mcp"),
-        toolCallApprovalPolicy: new McpToolCallApprovalPolicy(
-            GlobalMcpToolCallApprovalPolicy.NeverRequireApproval)));
+await using McpClient learnMcp = await McpClient.CreateAsync(new HttpClientTransport(new()
+{
+    Endpoint = new Uri("https://learn.microsoft.com/api/mcp"),
+    Name = "Microsoft Learn MCP",
+}));
+IList<McpClientTool> mcpTools = await learnMcp.ListToolsAsync();
+
+List<AITool> tools =
+[
+    AIFunctionFactory.Create(GetStock),
+    AIFunctionFactory.Create(GetPoStatus),
+    AIFunctionFactory.Create(FindOpenPosBySku),
+    .. mcpTools.Cast<AITool>(),
+];
 
 AIAgent agent = projectClient.AsAIAgent(
     model,
-    instructions: "You are Zara, the warehouse assistant for ZavaShop's Seattle fulfillment " +
-                  "center. Always answer using real data from the tools — never make up stock numbers.",
+    instructions:
+        "You are Zara, the warehouse assistant for ZavaShop's Seattle fulfillment center. " +
+        "Always answer using real data from the tools and never invent stock or PO numbers. " +
+        "To find the latest unarrived PO for a SKU, call FindOpenPosBySku first, then " +
+        "GetPoStatus for fuller detail.",
     name: "Zara",
-    tools: [
-        AIFunctionFactory.Create(GetStock),
-        AIFunctionFactory.Create(GetPoStatus),
-        learnMcp,
-    ]);
+    tools: tools);
 ```
 
 ### Step 5 — Run a 3-turn conversation on an AgentSession

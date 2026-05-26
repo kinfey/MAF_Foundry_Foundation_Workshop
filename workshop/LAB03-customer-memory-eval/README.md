@@ -71,11 +71,15 @@ All three steps load from [`workshop/data/`](../data/README.md):
 
 ## Tasks
 
-### Step 1 — Invoke the ZavaShop Coding Agent
+### Step 1 — Pick the ZavaShop Coding Agent in Agent Mode
+
+In VS Code Copilot Chat, switch to **Agent Mode**, open the agent picker, select **`zavashop-coding-agent`**, and send a prompt that names the LAB **and** the language:
 
 ```
-@zavashop-coding-agent I'm doing LAB 3 — build the ZavaShop concierge Aria with Foundry Memory + run FoundryEvals + a Red-Team scan.
+I'm doing LAB 3 in Python — build the ZavaShop concierge Aria with Foundry Memory + run FoundryEvals + a Red-Team scan.
 ```
+
+> Do not prefix with `@zavashop-coding-agent`. The agent is chosen from the dropdown; the chat text is plain task description (always state LAB number + language).
 
 The Coding Agent will:
 
@@ -261,10 +265,12 @@ If the first scan's ASR is over 10%, **go back to Aria's instructions and harden
 
 > Scope: **memory only**. Re-use the Python `evaluate_aria.py` and `redteam_aria.py` scripts against your C# agent's HTTP endpoint for the eval and red-team acceptance bullets.
 
-### Step 1 — Invoke the Coding Agent (C#)
+### Step 1 — Pick the ZavaShop Coding Agent in Agent Mode (C#)
+
+In VS Code Copilot Chat → **Agent Mode** → agent picker → **`zavashop-coding-agent`**, then send:
 
 ```
-@zavashop-coding-agent I'm doing LAB 3 in C# — build the Aria customer concierge agent with Foundry Memory; eval and red-team will reuse the Python scripts against the C# agent's endpoint.
+I'm doing LAB 3 in C# — build the Aria customer concierge agent with Foundry Memory; eval and red-team will reuse the Python scripts against the C# agent's endpoint.
 ```
 
 It will create `AriaAgent/` under [`workshop/LAB03-customer-memory-eval/`](.) with `..\..\data\ZavaData.cs` linked and these packages: `Microsoft.Agents.AI`, `Microsoft.Agents.AI.Foundry`, `Microsoft.Agents.AI.Foundry.Memory`, `Azure.AI.Projects`, `Azure.Identity`.

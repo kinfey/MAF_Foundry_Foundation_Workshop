@@ -9,6 +9,43 @@ Patterns for managing conversation state and multi-turn interactions.
 - Conversation persistence and resumption
 - Thread-based message history
 
+> **Compatibility note.** Current `agent-framework` builds shipped on PyPI surface multi-turn context through **`AgentSession`** instead of `AgentThread`. The mental model is identical (`session = agent.create_session()` ↔ `thread = agent.get_new_thread()`, `agent.run(..., session=session)` ↔ `agent.run(..., thread=thread)`). If the `AgentThread` snippets below don't match your installed API, jump to the [AgentSession (current SDK)](#agentsession-current-sdk) section.
+
+---
+
+## AgentSession (current SDK)
+
+When you build an agent through `Agent` + `FoundryChatClient` (the LAB 1 pattern), use `agent.create_session()`:
+
+```python
+from agent_framework import Agent
+from agent_framework.foundry import FoundryChatClient
+from azure.identity.aio import AzureCliCredential
+
+async with (
+    AzureCliCredential() as credential,
+    Agent(
+        client=FoundryChatClient(
+            project_endpoint=endpoint,
+            model=model,
+            credential=credential,
+        ),
+        name="ChatAgent",
+        instructions="You are a helpful assistant.",
+    ) as agent,
+):
+    session = agent.create_session()
+
+    # Turn 1
+    r1 = await agent.run("My name is Alice", session=session)
+    # Turn 2 — context preserved on the server
+    r2 = await agent.run("What's my name?", session=session)
+    # Turn 3
+    r3 = await agent.run("Tell me a joke about my name", session=session)
+```
+
+The rest of this page (Thread persistence, message-history inspection, etc.) applies to both APIs — just swap `thread`/`get_new_thread()` for `session`/`create_session()`.
+
 ---
 
 ## Creating and Using Threads

@@ -75,11 +75,15 @@ ZavaShop 的「下单到出仓」流程长这样：
 
 ## 任务清单
 
-### Step 1 — 调用 ZavaShop Coding Agent
+### Step 1 — 在 Agent Mode 里选中 ZavaShop Coding Agent
+
+在 VS Code Copilot Chat 切到 **Agent Mode**，打开 Agent 选择器，选中 **`zavashop-coding-agent`**，然后发送一条同时点明 LAB 编号和 **使用的编程语言** 的消息：
 
 ```
-@zavashop-coding-agent I'm doing LAB 4 — build the ZavaShop fulfillment workflow with concurrent stock+shipping, HITL approval and checkpoint resume.
+I'm doing LAB 4 in Python — build the ZavaShop fulfillment workflow with concurrent stock+shipping, HITL approval and checkpoint resume.
 ```
+
+> 不要再用 `@zavashop-coding-agent` 这种写法 —— Coding Agent 是从下拉里选的，对话框里只写任务描述（含 LAB 号 + 语言）。
 
 Coding Agent 会：
 
@@ -237,10 +241,12 @@ async for event in run:
 
 同一个 DAG、同一个 HITL 闸门、同一个 checkpoint 断点续跑。
 
-### Step 1 — 调用 Coding Agent（C#）
+### Step 1 — 在 Agent Mode 里选中 ZavaShop Coding Agent（C#）
+
+在 VS Code Copilot Chat → **Agent Mode** → Agent 选择器 → **`zavashop-coding-agent`**，然后发送：
 
 ```
-@zavashop-coding-agent I'm doing LAB 4 in C# — build the order-fulfillment workflow with HITL approval and checkpoint resume.
+I'm doing LAB 4 in C# — build the order-fulfillment workflow with HITL approval and checkpoint resume.
 ```
 
 会在 [`workshop/LAB04-fulfillment-workflow/`](.) 下创建 `FulfillmentWorkflow/`，link `..\..\data\ZavaData.cs`，依赖：`Microsoft.Agents.AI`、`Microsoft.Agents.AI.Workflows`、`Microsoft.Agents.AI.Foundry`、`Azure.AI.Projects`、`Azure.Identity`。

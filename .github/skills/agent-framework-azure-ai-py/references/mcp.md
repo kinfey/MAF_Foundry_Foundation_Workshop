@@ -11,6 +11,8 @@ The Agent Framework supports two MCP tool types:
 | `HostedMCPTool` | Service-managed | MCP servers the Azure AI service connects to |
 | `MCPStreamableHTTPTool` | Client-managed | MCP servers your code connects to |
 
+> **Compatibility note.** `HostedMCPTool` is documented first below, but **`MCPStreamableHTTPTool` is the broadly-available class** in the currently-shipping `agent-framework` prerelease — and it works against the same Microsoft Learn MCP endpoint. If `from agent_framework import HostedMCPTool` raises `ImportError`, jump to [MCPStreamableHTTPTool (recommended for current SDK)](#mcpstreamablehttptool-client-managed) and pass the tool as `tools=[..., learn_mcp]` to either `Agent(...)` (Foundry chat client pattern) or `provider.create_agent(...)`.
+
 ---
 
 ## HostedMCPTool (Service-Managed)

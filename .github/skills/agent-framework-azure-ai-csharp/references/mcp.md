@@ -6,12 +6,12 @@ Model Context Protocol (MCP) integration patterns for Microsoft Foundry agents.
 
 The .NET SDK supports two MCP flavors that mirror the Python skill:
 
-| Tool | Connection managed by | Use case |
-|---|---|---|
-| `ResponseTool.CreateMcpTool(...)` (hosted) | Foundry service | Public MCP servers, no client-side connection needed |
-| `McpClient` + `McpClientTool` (local) | Your code | Authenticated / private servers, transparent local invocation |
+| Tool | Connection managed by | Agent wiring | Use case |
+|---|---|---|---|
+| `ResponseTool.CreateMcpTool(...)` (hosted) | Foundry service | `DeclarativeAgentDefinition.Tools` → `CreateAgentVersionAsync` → `AsAIAgent(version)` (persistent agent only) | Public MCP servers, no client-side connection needed |
+| `McpClient` + `McpClientTool` (local) | Your code | `AsAIAgent(model, instructions, name, tools: [.. mcpTools.Cast<AITool>()])` (stateless agent) | Authenticated / private servers, transparent local invocation, fast iteration |
 
-Both share the same agent surface — the agent treats them as `AITool`s.
+> **Important.** `ProjectsAgentTool.AsProjectTool(ResponseTool.CreateMcpTool(...))` is **not** an `AITool` — it cannot be passed to the stateless `AsAIAgent(model, ..., tools: [...])` overload. Use hosted MCP only via the persistent `CreateAgentVersionAsync` path; otherwise use local MCP.
 
 ---
 

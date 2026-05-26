@@ -272,16 +272,27 @@ See [references/tools.md](references/tools.md) for detailed patterns.
 
 ## MCP Integration
 
-Two flavors, mirroring the Python skill:
+Two flavors, mirroring the Python skill. **Read the next paragraph before choosing — the two paths are NOT interchangeable.**
+
+> **Wiring rule.** Hosted MCP (`ResponseTool.CreateMcpTool`) returns an `OpenAI.Responses.ResponseTool` wrapped as a `ProjectsAgentTool`, which is **only accepted by `AgentAdministrationClient.CreateAgentVersionAsync(...)` via `DeclarativeAgentDefinition.Tools`** (the persistent agent path). It does **not** implement `Microsoft.Extensions.AI.AITool`, so you cannot pass it into the stateless `AIProjectClient.AsAIAgent(model, instructions, name, tools: [...])` overload. For the stateless overload, use **local MCP** (`McpClient` + `mcpTools.Cast<AITool>()`).
 
 ```csharp
-// 1) Hosted MCP — the Foundry service connects to the MCP server
+// 1) Hosted MCP — service-managed; requires the persistent CreateAgentVersionAsync path.
 ProjectsAgentTool hostedMcp = ProjectsAgentTool.AsProjectTool(ResponseTool.CreateMcpTool(
     serverLabel: "microsoft_learn",
     serverUri: new Uri("https://learn.microsoft.com/api/mcp"),
     toolCallApprovalPolicy: new McpToolCallApprovalPolicy(GlobalMcpToolCallApprovalPolicy.NeverRequireApproval)));
 
-// 2) Local MCP — your code connects, agent resolves tools client-side
+ProjectsAgentVersion version = await projectClient.AgentAdministrationClient.CreateAgentVersionAsync(
+    agentName: "DocsAgent",
+    options: new ProjectsAgentVersionCreationOptions(new DeclarativeAgentDefinition(model: deploymentName)
+    {
+        Instructions = "Answer questions using Microsoft documentation.",
+        Tools = { hostedMcp },
+    }));
+AIAgent hostedAgent = projectClient.AsAIAgent(version);
+
+// 2) Local MCP — your code holds the connection; works with the stateless AsAIAgent overload.
 await using McpClient mcpClient = await McpClient.CreateAsync(new HttpClientTransport(new()
 {
     Endpoint = new Uri("https://learn.microsoft.com/api/mcp"),
@@ -289,7 +300,7 @@ await using McpClient mcpClient = await McpClient.CreateAsync(new HttpClientTran
 }));
 IList<McpClientTool> mcpTools = await mcpClient.ListToolsAsync();
 
-AIAgent agent = projectClient.AsAIAgent(
+AIAgent localAgent = projectClient.AsAIAgent(
     deploymentName,
     instructions: "Answer questions using Microsoft documentation.",
     name: "DocsAgent",

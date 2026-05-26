@@ -34,6 +34,8 @@ pip install agent-framework --pre
 pip install agent-framework-azure-ai --pre
 ```
 
+> **Compatibility note (current prerelease).** Recent `agent-framework` builds publish on PyPI ship with `Agent` (in `agent_framework`) and `FoundryChatClient` (in `agent_framework.foundry`) as the supported high-level entry points, plus `MCPStreamableHTTPTool` for MCP. **`AzureAIAgentsProvider` and `HostedMCPTool` are documented below but may not be exported in your installed version** — if `from agent_framework.azure import AzureAIAgentsProvider` raises `ImportError`, use the **Foundry Chat Client** pattern lower in this file (verified by LAB 1 in the ZavaShop workshop) together with `MCPStreamableHTTPTool` from the [MCP reference](./references/mcp.md). API surface is the same: `Agent.run(..., session=session)`, `agent.create_session()`, function-tool list, `async with` lifecycle.
+
 ## Environment Variables
 
 ```bash

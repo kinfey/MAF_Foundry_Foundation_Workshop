@@ -70,11 +70,15 @@ The control tower binds to the same fixtures the rest of the workshop shares ([`
 
 ## Tasks
 
-### Step 1 — Invoke the ZavaShop Coding Agent
+### Step 1 — Pick the ZavaShop Coding Agent in Agent Mode
+
+In VS Code Copilot Chat, switch to **Agent Mode**, open the agent picker, select **`zavashop-coding-agent`**, and send a prompt that names the LAB **and** the language:
 
 ```
-@zavashop-coding-agent I'm doing LAB 5 — wrap the LAB 4 fulfillment workflow as an AG-UI endpoint and build the Control Tower smoketest client.
+I'm doing LAB 5 in Python — wrap the LAB 4 fulfillment workflow as an AG-UI endpoint and build the Control Tower smoketest client.
 ```
+
+> Do not prefix with `@zavashop-coding-agent`. The agent is chosen from the dropdown; the chat text is plain task description (always state LAB number + language).
 
 The Coding Agent will:
 
@@ -238,10 +242,12 @@ Write a mapping table from the 7 AG-UI features to 7 UI components, e.g.:
 
 Same seven AG-UI features, same shared state, same API key, same client smoke test.
 
-### Step 1 — Invoke the Coding Agent (C#)
+### Step 1 — Pick the ZavaShop Coding Agent in Agent Mode (C#)
+
+In VS Code Copilot Chat → **Agent Mode** → agent picker → **`zavashop-coding-agent`**, then send:
 
 ```
-@zavashop-coding-agent I'm doing LAB 5 in C# — expose the LAB 4 fulfillment workflow over AG-UI so the control tower can drive it.
+I'm doing LAB 5 in C# — expose the LAB 4 fulfillment workflow over AG-UI so the control tower can drive it.
 ```
 
 It will create two projects under [`workshop/LAB05-control-tower-agui/`](.):

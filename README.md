@@ -210,13 +210,15 @@ See [workshop/data/README.md](workshop/data/README.md) for the full schema and e
 This workshop ships a Coding Agent ready for GitHub Copilot Chat:
 
 - Definition: [.github/agents/zavashop-coding-agent.agent.md](.github/agents/zavashop-coding-agent.agent.md)
-- Mention it as: **`@zavashop-coding-agent`**
+- Activation: open **Agent Mode** in VS Code Copilot Chat → open the **Agent picker** → select **`zavashop-coding-agent`**.
 
-It already knows the LAB ↔ SKILL routing and the **track ↔ SKILL** routing. For every LAB, the very first step in the README is:
+It already knows the LAB ↔ SKILL routing and the **track ↔ SKILL** routing. For every LAB, the very first step in the README is to pick the agent from the dropdown and send a plain-text prompt that always states (a) the LAB number and (b) the language:
 
 ```text
-@zavashop-coding-agent I'm doing LAB X in <Python|C#> — <one-line goal>
+I'm doing LAB X in <Python|C#> — <one-line goal>
 ```
+
+> **Do not type `@zavashop-coding-agent`.** The agent is chosen from the Agent Mode dropdown; the chat text is plain task description. If you omit the language, the agent will ask once and then stick with your choice for the LAB.
 
 When you do that, the Coding Agent will:
 
@@ -226,7 +228,7 @@ When you do that, the Coding Agent will:
 4. Generate the task plan, write the code, run validation.
 5. Map each acceptance criterion in your LAB and report which ones pass.
 
-> Use `@zavashop-coding-agent` instead of `@workspace` to start each LAB — this guarantees the SKILL is loaded before any code is written.
+> Always start a LAB by switching from the default Copilot Chat agent to `zavashop-coding-agent` — this guarantees the SKILL is loaded before any code is written.
 >
 > The Coding Agent will reply in your language (English by default). If you write Chinese, it will switch automatically.
 

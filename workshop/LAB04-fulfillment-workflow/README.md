@@ -76,11 +76,15 @@ All five executors operate on the shared fixtures under [`workshop/data/`](../da
 
 ## Tasks
 
-### Step 1 — Invoke the ZavaShop Coding Agent
+### Step 1 — Pick the ZavaShop Coding Agent in Agent Mode
+
+In VS Code Copilot Chat, switch to **Agent Mode**, open the agent picker, select **`zavashop-coding-agent`**, and send a prompt that names the LAB **and** the language:
 
 ```
-@zavashop-coding-agent I'm doing LAB 4 — build the ZavaShop fulfillment workflow with concurrent stock+shipping, HITL approval and checkpoint resume.
+I'm doing LAB 4 in Python — build the ZavaShop fulfillment workflow with concurrent stock+shipping, HITL approval and checkpoint resume.
 ```
+
+> Do not prefix with `@zavashop-coding-agent`. The agent is chosen from the dropdown; the chat text is plain task description (always state LAB number + language).
 
 The Coding Agent will:
 
@@ -238,10 +242,12 @@ Deliberately `Ctrl+C` the second run; note the `checkpoint_id`; then call `workf
 
 Same DAG, same HITL gate, same checkpoint resume.
 
-### Step 1 — Invoke the Coding Agent (C#)
+### Step 1 — Pick the ZavaShop Coding Agent in Agent Mode (C#)
+
+In VS Code Copilot Chat → **Agent Mode** → agent picker → **`zavashop-coding-agent`**, then send:
 
 ```
-@zavashop-coding-agent I'm doing LAB 4 in C# — build the order-fulfillment workflow with HITL approval and checkpoint resume.
+I'm doing LAB 4 in C# — build the order-fulfillment workflow with HITL approval and checkpoint resume.
 ```
 
 It will create `FulfillmentWorkflow/` under [`workshop/LAB04-fulfillment-workflow/`](.) with `..\..\data\ZavaData.cs` linked and these packages: `Microsoft.Agents.AI`, `Microsoft.Agents.AI.Workflows`, `Microsoft.Agents.AI.Foundry`, `Azure.AI.Projects`, `Azure.Identity`.

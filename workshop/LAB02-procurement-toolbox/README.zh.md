@@ -68,11 +68,15 @@ CTO 给出三条硬要求：
 
 ## 任务清单
 
-### Step 1 — 调用 ZavaShop Coding Agent
+### Step 1 — 在 Agent Mode 里选中 ZavaShop Coding Agent
+
+在 VS Code Copilot Chat 切到 **Agent Mode**，打开 Agent 选择器，选中 **`zavashop-coding-agent`**，然后发送一条同时点明 LAB 编号和 **使用的编程语言** 的消息：
 
 ```
-@zavashop-coding-agent I'm doing LAB 2 — build the ZavaShop procurement agent Pierre with a Foundry Toolbox + an Agent Skill that requires approval.
+I'm doing LAB 2 in Python — build the ZavaShop procurement agent Pierre with a Foundry Toolbox + an Agent Skill that requires approval.
 ```
+
+> 不要再用 `@zavashop-coding-agent` 这种写法 —— Coding Agent 是从下拉里选的，对话框里只写任务描述（含 LAB 号 + 语言）。
 
 Coding Agent 会：
 
@@ -216,10 +220,12 @@ python pierre_agent.py
 
 同一个故事、同一份 fixture（`suppliers.json` / `contracts.json` / `skus.json`）、同一条 `CT-2026-Q1-YIWU` $100k 上限规则。
 
-### Step 1 — 调用 Coding Agent（C#）
+### Step 1 — 在 Agent Mode 里选中 ZavaShop Coding Agent（C#）
+
+在 VS Code Copilot Chat → **Agent Mode** → Agent 选择器 → **`zavashop-coding-agent`**，然后发送：
 
 ```
-@zavashop-coding-agent I'm doing LAB 2 in C# — build the ZavaShop procurement agent Pierre with a Foundry Toolbox + an Agent Skill that requires approval.
+I'm doing LAB 2 in C# — build the ZavaShop procurement agent Pierre with a Foundry Toolbox + an Agent Skill that requires approval.
 ```
 
 Coding Agent 会在 [`workshop/LAB02-procurement-toolbox/`](.) 下创建两个控制台项目：

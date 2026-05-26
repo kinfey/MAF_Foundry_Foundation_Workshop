@@ -71,11 +71,15 @@ This LAB validates PO submissions against the real supplier / contract fixtures 
 
 ## Tasks
 
-### Step 1 — Invoke the ZavaShop Coding Agent
+### Step 1 — Pick the ZavaShop Coding Agent in Agent Mode
+
+In VS Code Copilot Chat, switch to **Agent Mode**, open the agent picker, select **`zavashop-coding-agent`**, and send a prompt that names the LAB **and** the language:
 
 ```
-@zavashop-coding-agent I'm doing LAB 2 — build the ZavaShop procurement agent Pierre with a Foundry Toolbox + an Agent Skill that requires approval.
+I'm doing LAB 2 in Python — build the ZavaShop procurement agent Pierre with a Foundry Toolbox + an Agent Skill that requires approval.
 ```
+
+> Do not prefix with `@zavashop-coding-agent`. The agent is chosen from the dropdown; the chat text is plain task description (always state LAB number + language).
 
 The Coding Agent will:
 
@@ -220,10 +224,12 @@ python pierre_agent.py
 
 Same story, same fixtures (`suppliers.json`, `contracts.json`, `skus.json`), same `CT-2026-Q1-YIWU` $100k ceiling.
 
-### Step 1 — Invoke the Coding Agent (C#)
+### Step 1 — Pick the ZavaShop Coding Agent in Agent Mode (C#)
+
+In VS Code Copilot Chat → **Agent Mode** → agent picker → **`zavashop-coding-agent`**, then send:
 
 ```
-@zavashop-coding-agent I'm doing LAB 2 in C# — build the ZavaShop procurement agent Pierre with a Foundry Toolbox + an Agent Skill that requires approval.
+I'm doing LAB 2 in C# — build the ZavaShop procurement agent Pierre with a Foundry Toolbox + an Agent Skill that requires approval.
 ```
 
 It will create two console projects under [`workshop/LAB02-procurement-toolbox/`](.):

@@ -69,11 +69,15 @@ Python 赛道在 [§任务清单](#任务清单)；.NET 赛道在 [§.NET 实现
 
 ## 任务清单
 
-### Step 1 — 调用 ZavaShop Coding Agent
+### Step 1 — 在 Agent Mode 里选中 ZavaShop Coding Agent
+
+在 VS Code Copilot Chat 切到 **Agent Mode**，打开 Agent 选择器，选中 **`zavashop-coding-agent`**，然后发送一条同时点明 LAB 编号和 **使用的编程语言** 的消息：
 
 ```
-@zavashop-coding-agent I'm doing LAB 5 — wrap the LAB 4 fulfillment workflow as an AG-UI endpoint and build the Control Tower smoketest client.
+I'm doing LAB 5 in Python — wrap the LAB 4 fulfillment workflow as an AG-UI endpoint and build the Control Tower smoketest client.
 ```
+
+> 不要再用 `@zavashop-coding-agent` 这种写法 —— Coding Agent 是从下拉里选的，对话框里只写任务描述（含 LAB 号 + 语言）。
 
 Coding Agent 会：
 
@@ -234,10 +238,12 @@ asyncio.run(main())
 
 同样七个 AG-UI 特性、同样的共享状态、同样的 API Key、同样的客户端烟雾脚本。
 
-### Step 1 — 调用 Coding Agent（C#）
+### Step 1 — 在 Agent Mode 里选中 ZavaShop Coding Agent（C#）
+
+在 VS Code Copilot Chat → **Agent Mode** → Agent 选择器 → **`zavashop-coding-agent`**，然后发送：
 
 ```
-@zavashop-coding-agent I'm doing LAB 5 in C# — expose the LAB 4 fulfillment workflow over AG-UI so the control tower can drive it.
+I'm doing LAB 5 in C# — expose the LAB 4 fulfillment workflow over AG-UI so the control tower can drive it.
 ```
 
 会在 [`workshop/LAB05-control-tower-agui/`](.) 下创建两个项目：
