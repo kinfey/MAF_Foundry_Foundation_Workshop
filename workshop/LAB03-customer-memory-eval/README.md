@@ -71,7 +71,9 @@ All three steps load from [`workshop/data/`](../data/README.md):
 
 ## Preparation: Foundry Memory Permissions
 
-Before running this LAB, confirm your Foundry project can call both the chat model and the embedding deployment used by the memory store. If the project resource includes `properties.agentIdentity`, Foundry Memory uses that **Agent Identity ServiceIdentity SP** for data-plane calls. The roles must be granted to that SP, not just to your signed-in user or the account managed identity.
+Before running this LAB, confirm the identity your script runs as can call BOTH the chat model and the embedding deployment used by the memory store. The `Foundry User` role covers chat completions but **does NOT include the embedding data action** that `FoundryMemoryProvider.search_memories` triggers — that path runs under the caller's token and fails with a 401 from the embedding deployment until you add the OpenAI data-plane role.
+
+Grant the three roles below to **every identity that will run `aria_agent.py`**. For local development with `AzureCliCredential`, that's your signed-in user. For server-side hosting, that's the app's managed identity instead.
 
 1. Make sure [`workshop/.env`](../.env) contains these values:
 
@@ -85,7 +87,7 @@ Before running this LAB, confirm your Foundry project can call both the chat mod
      FOUNDRY_PROJECT_NAME=<project-name>
      ```
 
-2. Resolve the AI account and project scopes, then discover the Agent Identity SP:
+2. Resolve the AI account and project scopes, then capture the calling identity's object id:
 
      ```bash
      account_id=$(az resource show \
@@ -97,29 +99,39 @@ Before running this LAB, confirm your Foundry project can call both the chat mod
 
      project_id="$account_id/projects/$FOUNDRY_PROJECT_NAME"
 
-     agent_identity_object_id=$(az resource show \
-         --ids "$project_id" \
-         --api-version 2025-04-01-preview \
-         --query "properties.agentIdentity.agentIdentityId" -o tsv)
+     # Local dev — your signed-in user is the caller.
+     caller_object_id=$(az ad signed-in-user show --query id -o tsv)
+     caller_principal_type=User
      ```
 
-3. Grant the memory runtime roles to that object id:
+3. Grant the three memory runtime roles to that object id:
 
      ```bash
-     az role assignment create --assignee-object-id "$agent_identity_object_id" \
-         --assignee-principal-type ServicePrincipal \
+     # Required: lets the caller's token call the embedding deployment that
+     # FoundryMemoryProvider.search_memories invokes under the hood.
+     az role assignment create --assignee-object-id "$caller_object_id" \
+         --assignee-principal-type "$caller_principal_type" \
          --role "Cognitive Services OpenAI User" --scope "$account_id"
 
-     az role assignment create --assignee-object-id "$agent_identity_object_id" \
-         --assignee-principal-type ServicePrincipal \
+     az role assignment create --assignee-object-id "$caller_object_id" \
+         --assignee-principal-type "$caller_principal_type" \
          --role "Cognitive Services OpenAI User" --scope "$project_id"
 
-     az role assignment create --assignee-object-id "$agent_identity_object_id" \
-         --assignee-principal-type ServicePrincipal \
+     az role assignment create --assignee-object-id "$caller_object_id" \
+         --assignee-principal-type "$caller_principal_type" \
          --role "Cognitive Services User" --scope "$account_id"
      ```
 
-If `agent_identity_object_id` is empty, your project may be using a different identity shape. Continue with the LAB, but if memory store creation or memory updates fail with a 401 from the embedding model, re-check the project identity in the Foundry portal / ARM output before debugging SDK code.
+4. **(Optional — legacy projects only.)** A small subset of older Foundry projects expose `properties.agentIdentity.agentIdentityId`, in which case the memory backend uses that separate ServiceIdentity SP for data-plane calls and you MUST also grant the same three roles to that object id (`--assignee-principal-type ServicePrincipal`). Newer projects return `null` here and this step does not apply:
+
+     ```bash
+     az resource show --ids "$project_id" \
+         --api-version 2025-04-01-preview \
+         --query "properties.agentIdentity.agentIdentityId" -o tsv
+     # empty output → skip this step; proceed with the LAB.
+     ```
+
+If `search_memories` still returns 401 after the three roles above, double-check the **`Cognitive Services OpenAI User`** assignment on the **account** scope — that's the single role most often missing. RBAC propagation can take 30–90 seconds; re-run after a short wait before debugging SDK code.
 
 ---
 

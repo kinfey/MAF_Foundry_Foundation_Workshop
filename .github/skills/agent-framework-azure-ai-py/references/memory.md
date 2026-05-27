@@ -163,7 +163,7 @@ The user prefers dark roast coffee.
 | Embedding errors | Embedding model not deployed in the project | Deploy `text-embedding-3-small` (or similar) and set `AZURE_OPENAI_EMBEDDING_MODEL` |
 | Cost growing unexpectedly | `update_delay=0` in production | Raise `update_delay` to batch writes; periodically delete unused stores |
 | Service-side messages duplicating memory | `store=True` while also using `FoundryMemoryProvider` | Either keep both (full transcript + memory) or set `default_options={"store": False}` to rely only on memory |
-| `401 InvalidAuthenticationTokenTenant` when memory backend calls the embedding model | Foundry projects with `properties.agentIdentity` use a separate ServiceIdentity SP for data-plane calls — the account / project MI is NOT used | Find the project's `properties.agentIdentity.agentIdentityId` via `az resource show`, then grant **`Cognitive Services OpenAI User`** on both the account and the project, and **`Cognitive Services User`** on the account, to that Agent Identity SP |
+| `401` from the memory backend when calling the embedding deployment | The **calling identity** (the credential you pass to `AIProjectClient`) is missing the embedding data action. `Foundry User` covers chat completions but NOT embeddings, and `FoundryMemoryProvider.search_memories` runs under the caller's token | Grant the calling identity (signed-in user locally, managed identity in production) `Cognitive Services OpenAI User` on BOTH the AI account and project scopes, plus `Cognitive Services User` on the account scope. Only when `properties.agentIdentity.agentIdentityId` is non-empty on the project must you grant the same three roles to that separate ServiceIdentity SP — newer projects return `null` and don't need it |
 | `UnicodeDecodeError` from `memory_stores.create` / `list` / `search_memories` | Server returns gzipped response that the prerelease SDK does not decode | Attach an `Accept-Encoding: identity` policy via `AIProjectClient(per_call_policies=[...])` — see snippet below |
 | `delete(name)` then immediate `create(name)` returns a 409 / soft-tombstone | Memory store names linger after delete | Always use a unique suffix: `f"zavashop-memory-{uuid.uuid4().hex[:8]}"` |
 | Session 2 doesn't recall facts even after a long sleep | `FoundryMemoryProvider.after_run` is fire-and-forget — it submits `begin_update_memories` but doesn't await the poller | For demos, explicitly call `await project_client.beta.memory_stores.begin_update_memories(name=..., scope=..., items=[...], update_delay=0)` and `await poller.result()`, then poll `search_memories` until rows land — don't `asyncio.sleep()` and hope |
@@ -221,28 +221,44 @@ for _ in range(12):
     await asyncio.sleep(5)
 ```
 
-### Finding the Agent Identity SP for RBAC
+### Granting RBAC to the calling identity
+
+For local development, the calling identity is your signed-in user. For server-side hosting, it's the app's managed identity. Either way, the same three roles must land on it:
+
+```bash
+# Local dev — signed-in user is the caller.
+caller_object_id=$(az ad signed-in-user show --query id -o tsv)
+caller_principal_type=User
+
+account_scope="/subscriptions/<sub>/resourceGroups/<rg>/providers/Microsoft.CognitiveServices/accounts/<account>"
+project_scope="$account_scope/projects/<project>"
+
+# 1. Lets the caller's token call the embedding deployment that
+#    FoundryMemoryProvider.search_memories invokes on the data plane.
+az role assignment create --assignee-object-id "$caller_object_id" \
+  --assignee-principal-type "$caller_principal_type" \
+  --role "Cognitive Services OpenAI User" --scope "$account_scope"
+
+# 2. Same role at project scope (memory store / search lives under the project).
+az role assignment create --assignee-object-id "$caller_object_id" \
+  --assignee-principal-type "$caller_principal_type" \
+  --role "Cognitive Services OpenAI User" --scope "$project_scope"
+
+# 3. Cognitive Services User on the account is the third leg — missing this
+#    leaves search_memories returning a 401 even with the two above.
+az role assignment create --assignee-object-id "$caller_object_id" \
+  --assignee-principal-type "$caller_principal_type" \
+  --role "Cognitive Services User" --scope "$account_scope"
+```
+
+**Legacy `properties.agentIdentity` projects only.** A small subset of older Foundry projects expose a separate ServiceIdentity SP at `properties.agentIdentity.agentIdentityId`. The memory backend uses THAT SP for data-plane calls in those projects, so you must repeat the same three role assignments with the SP's object id and `--assignee-principal-type ServicePrincipal`. Newer projects return `null` here — skip this step:
 
 ```bash
 az resource show \
   --ids "/subscriptions/<sub>/resourceGroups/<rg>/providers/Microsoft.CognitiveServices/accounts/<account>/projects/<project>" \
   --api-version 2025-04-01-preview \
-  --query "properties.agentIdentity" -o json
-# → { "agentIdentityId": "<object-id>", ... }
-
-# Grant data-plane roles to THAT object id (not the account / project MI):
-az role assignment create --assignee-object-id <agentIdentityId> \
-  --assignee-principal-type ServicePrincipal \
-  --role "Cognitive Services OpenAI User" \
-  --scope "/subscriptions/<sub>/resourceGroups/<rg>/providers/Microsoft.CognitiveServices/accounts/<account>"
-az role assignment create --assignee-object-id <agentIdentityId> \
-  --assignee-principal-type ServicePrincipal \
-  --role "Cognitive Services OpenAI User" \
-  --scope "/subscriptions/<sub>/resourceGroups/<rg>/providers/Microsoft.CognitiveServices/accounts/<account>/projects/<project>"
-az role assignment create --assignee-object-id <agentIdentityId> \
-  --assignee-principal-type ServicePrincipal \
-  --role "Cognitive Services User" \
-  --scope "/subscriptions/<sub>/resourceGroups/<rg>/providers/Microsoft.CognitiveServices/accounts/<account>"
+  --query "properties.agentIdentity.agentIdentityId" -o tsv
+# empty output → modern project, skip the agentIdentity path entirely.
 ```
 
 ## Public API Reference

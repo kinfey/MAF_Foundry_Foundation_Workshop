@@ -70,7 +70,9 @@ CTO 直接指定：
 
 ## 准备工作：Foundry Memory 权限
 
-运行本 LAB 前，先确认 Foundry project 能调用 chat model 和 memory store 使用的 embedding deployment。如果 project 资源里有 `properties.agentIdentity`，Foundry Memory 对 embedding model 的数据面调用会使用这个**独立的 Agent Identity ServiceIdentity SP**。角色要授给这个 SP，而不是只授给你当前登录用户、account managed identity，或 project 子资源 identity。
+运行本 LAB 前，先确认**真正运行脚本的身份**能同时调用 chat model 和 memory store 用的 embedding deployment。`Foundry User` 角色覆盖 chat completions，但**不包含 embedding 的数据面动作**——`FoundryMemoryProvider.search_memories` 调 embedding 时走的是调用方 token，所以缺这条权限就会被 embedding 部署回 401。
+
+下面三条角色要授给**每一个会跑 `aria_agent.py` 的身份**。本地开发用 `AzureCliCredential`，调用方就是你当前登录的 user；放到服务端则是该应用的 managed identity。
 
 1. 确认 [`workshop/.env`](../.env) 至少包含：
 
@@ -84,7 +86,7 @@ CTO 直接指定：
      FOUNDRY_PROJECT_NAME=<project-name>
      ```
 
-2. 解析 AI account / project scope，并找出 Agent Identity SP：
+2. 解析 AI account / project scope，并拿到调用方身份的 object id：
 
      ```bash
      account_id=$(az resource show \
@@ -96,29 +98,39 @@ CTO 直接指定：
 
      project_id="$account_id/projects/$FOUNDRY_PROJECT_NAME"
 
-     agent_identity_object_id=$(az resource show \
-         --ids "$project_id" \
-         --api-version 2025-04-01-preview \
-         --query "properties.agentIdentity.agentIdentityId" -o tsv)
+     # 本地开发 —— 当前登录用户就是调用方。
+     caller_object_id=$(az ad signed-in-user show --query id -o tsv)
+     caller_principal_type=User
      ```
 
-3. 给这个 object id 授 memory runtime 需要的角色：
+3. 给这个 object id 授三条 memory runtime 所需的角色：
 
      ```bash
-     az role assignment create --assignee-object-id "$agent_identity_object_id" \
-         --assignee-principal-type ServicePrincipal \
+     # 必备：让调用方 token 可以打 FoundryMemoryProvider.search_memories
+     # 底层调用的那个 embedding 部署。
+     az role assignment create --assignee-object-id "$caller_object_id" \
+         --assignee-principal-type "$caller_principal_type" \
          --role "Cognitive Services OpenAI User" --scope "$account_id"
 
-     az role assignment create --assignee-object-id "$agent_identity_object_id" \
-         --assignee-principal-type ServicePrincipal \
+     az role assignment create --assignee-object-id "$caller_object_id" \
+         --assignee-principal-type "$caller_principal_type" \
          --role "Cognitive Services OpenAI User" --scope "$project_id"
 
-     az role assignment create --assignee-object-id "$agent_identity_object_id" \
-         --assignee-principal-type ServicePrincipal \
+     az role assignment create --assignee-object-id "$caller_object_id" \
+         --assignee-principal-type "$caller_principal_type" \
          --role "Cognitive Services User" --scope "$account_id"
      ```
 
-如果 `agent_identity_object_id` 为空，说明你的 project 可能使用了不同 identity 形态。可以继续做 LAB；但如果 memory store 创建或 memory update 在 embedding model 处报 401，先回到 Foundry portal / ARM 输出确认 project identity，再调 SDK 代码。
+4. **（可选 —— 只针对历史 project）** 少数旧版 Foundry project 会在 `properties.agentIdentity.agentIdentityId` 暴露一个独立的 ServiceIdentity SP，此时 memory 后端的数据面调用走的是它，必须把同样三条角色再授一份给这个 SP（`--assignee-principal-type ServicePrincipal`）。新版 project 该字段为 `null`，跳过即可：
+
+     ```bash
+     az resource show --ids "$project_id" \
+         --api-version 2025-04-01-preview \
+         --query "properties.agentIdentity.agentIdentityId" -o tsv
+     # 输出为空 → 跳过这一步，继续做 LAB。
+     ```
+
+如果三条权限都给了但 `search_memories` 依然 401，重点检查 **account scope 上的 `Cognitive Services OpenAI User`**——这是最容易漏的一条。RBAC 传播需要 30–90 秒，先等一会再排查 SDK。
 
 ---
 

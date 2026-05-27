@@ -313,7 +313,7 @@ See [references/mcp.md](references/mcp.md) for approval flows, auth headers, hos
 
 Attach a `FoundryMemoryProvider` to persist user-scoped memories that survive across sessions and processes.
 
-The same Foundry Memory RBAC rule applies to .NET as to Python: if the memory backend gets a 401 from the embedding deployment, check whether the Foundry project has `properties.agentIdentity`. That Agent Identity is a separate ServiceIdentity SP. Grant its object id `Cognitive Services OpenAI User` on both the AI account and project scopes, plus `Cognitive Services User` on the AI account scope, before changing agent code.
+The same Foundry Memory RBAC rule applies to .NET as to Python: a 401 from the memory backend hitting the embedding deployment almost always means the **calling identity** (your signed-in user when using `AzureCliCredential` locally, or the app's managed identity in production) lacks the embedding data action. The `Foundry User` role covers chat completions but NOT embeddings. Grant that caller `Cognitive Services OpenAI User` on both the AI account and project scopes, plus `Cognitive Services User` on the AI account scope, before changing agent code. The legacy `properties.agentIdentity.agentIdentityId` path is `null` on newer Foundry projects and is NOT the fix — only grant that ServiceIdentity SP the same three roles when the ARM lookup returns a non-empty value.
 
 ```csharp
 using Microsoft.Agents.AI.Foundry;
