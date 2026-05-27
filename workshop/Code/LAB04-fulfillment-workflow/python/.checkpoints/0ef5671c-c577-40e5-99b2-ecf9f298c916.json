@@ -1,0 +1,33 @@
+{
+  "workflow_name": "ZavaFulfillment",
+  "graph_signature_hash": "8f28abf551a5250ae87792edbd61fbd45002ff2196227a0a9eb92fefbba4df43",
+  "checkpoint_id": "0ef5671c-c577-40e5-99b2-ecf9f298c916",
+  "previous_checkpoint_id": "5ba0b183-5cfc-4cc7-be5d-ec250ebbc9dc",
+  "timestamp": "2026-05-27T03:51:21.434237+00:00",
+  "messages": {
+    "allocator": [
+      {
+        "__pickled__": "gAWVpgMAAAAAAACMKmFnZW50X2ZyYW1ld29yay5fd29ya2Zsb3dzLl9ydW5uZXJfY29udGV4dJSMD1dvcmtmbG93TWVzc2FnZZSTlCmBlH2UKIwEZGF0YZSMCF9fbWFpbl9flIwOQWxsb2NhdGlvblBsYW6Uk5QpgZR9lCiMBW9yZGVylGgGjAtPcmRlclJlY29yZJSTlCmBlH2UKIwIb3JkZXJfaWSUjBBPUkQtMjAyNjA1MjQtMDAylIwLY3VzdG9tZXJfaWSUjAdWSVBfMDAzlIwFbGluZXOUXZR9lCiMA3NrdZSMCFNLVS0zMDU1lIwDcXR5lEsyjA51bml0X3ByaWNlX3VzZJRHQDKAAAAAAAB1YYwMc2hpcF90b19jaXR5lIwGQm9zdG9ulIwRc2hpcF90b193YXJlaG91c2WUjAZTRUEtMDGUjAl0b3RhbF91c2SUR0CXcAAAAAAAdWKMBXN0b2NrlGgGjAtTdG9ja1JlcG9ydJSTlCmBlH2UKGgQaBGMCXdhcmVob3VzZZRoHmgUXZRoBowJU3RvY2tMaW5llJOUKYGUfZQojANza3WUaBiMA3F0eZRLMowHb25faGFuZJRLDowJYXZhaWxhYmxllEsIjApzdWZmaWNpZW50lIl1YmGMDGFsbF9pbl9zdG9ja5SJdWKMB2ZyZWlnaHSUaAaMDEZyZWlnaHRRdW90ZZSTlCmBlH2UKGgQaBGMBGxhbmWUjAtVUy1kb21lc3RpY5SMCHRvdGFsX2tnlEdAbgAAAAAAAIwGcXVvdGVzlF2UKGgGjAxDYXJyaWVyUXVvdGWUk5QpgZR9lCiMCmNhcnJpZXJfaWSUjARVU1BTlIwEbmFtZZSMFVVTUFMgR3JvdW5kIEFkdmFudGFnZZSMCXByaWNlX3VzZJRHQIC0AAAAAACMDHRyYW5zaXRfZGF5c5RLBXViaDwpgZR9lChoP4wFRkVERViUaEGMDkZlZEV4IFByaW9yaXR5lGhDR0CREAAAAAAAaERLAnViZYwIY2hlYXBlc3SUaD11YmgfR0CfygAAAAAAdWKMCXNvdXJjZV9pZJSMCWFsbG9jYXRvcpSMCXRhcmdldF9pZJROjAR0eXBllGgAjAtNZXNzYWdlVHlwZZSTlIwIc3RhbmRhcmSUhZRSlIwOdHJhY2VfY29udGV4dHOUTowPc291cmNlX3NwYW5faWRzlE6MG29yaWdpbmFsX3JlcXVlc3RfaW5mb19ldmVudJROdWIu",
+        "__type__": "agent_framework._workflows._runner_context:WorkflowMessage"
+      }
+    ]
+  },
+  "state": {
+    "_workflow_run_kwargs": {},
+    "_executor_state": {
+      "intake": {},
+      "stock_check": {},
+      "shipping_quote": {},
+      "allocator": {},
+      "approval": {
+        "pending": null
+      },
+      "dispatch": {},
+      "finance": {}
+    }
+  },
+  "pending_request_info_events": {},
+  "iteration_count": 2,
+  "metadata": {},
+  "version": "1.0"
+}

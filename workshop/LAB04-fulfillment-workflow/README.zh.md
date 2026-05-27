@@ -24,16 +24,17 @@ Python 赛道在 [§任务清单](#任务清单)；.NET 赛道在 [§.NET 实现
 ZavaShop 的「下单到出仓」流程长这样：
 
 ```
-新订单 ──► 库存检查 ──► 仓位分配 ──► 物流报价 ──► (≥1000$ 需主管放行) ──► 出仓通知 ──► 财务记账
+intake ──┬─► stock_check ──┐
+         └─► shipping_quote ┴─► allocator ─► approval (HITL ≥ $1000) ─► dispatch ─► finance
 ```
 
-5 个角色每个都是一个独立 Agent，跑在 `gpt-5.5` 上。要求：
+7 个节点全是确定性的 Python executor（`@executor` 或 `Executor` 子类）—— **不是** 聊天 Agent。整张图最后通过 `workflow.as_agent("ZavaFulfillment")` 包成一个 Agent，供 LAB 5 的指挥中心调用。要求：
 
-1. **确定性编排**：用 `WorkflowBuilder` 把 5 个 Agent 串成一张图，事件可追踪。
-2. **fan-out / fan-in**：库存检查 + 物流报价可以**并发**跑（用 `ConcurrentBuilder` 或自定义 fan-out）。
-3. **HITL**：金额 ≥ 1000 USD 时用 `ctx.request_info(...)` 暂停，等主管回复 yes/no。
-4. **Checkpoint**：每个 super-step 自动落 checkpoint，**断电重跑**可以 `workflow.run(checkpoint_id=...)` 恢复。
-5. **可包装**：整张工作流最终用 `workflow.as_agent()` 包成一个对外 Agent，供 LAB 5 的指挥中心调用。
+1. **确定性编排**：用 `WorkflowBuilder` 把 7 个 executor 串成一张图，事件可追踪。
+2. **fan-out / fan-in**：`stock_check` + `shipping_quote` 通过 `.add_fan_out_edges(intake, [stock_check, shipping_quote])` **并发**，再用 `.add_fan_in_edges([stock_check, shipping_quote], allocator)` 在 `allocator` 处汇合。（**不用** `ConcurrentBuilder`，那个 builder 是把 user prompt 分发给聊天 Agent；这里要把一个 **类型化** 的 `OrderRecord` 扇给两个 executor。）
+3. **HITL**：金额 ≥ $1000 时 `approval` executor 调用 `ctx.request_info(...)`，工作流停在 `WorkflowRunState.IDLE_WITH_PENDING_REQUESTS`。
+4. **Checkpoint**：每个 super-step 在 `.checkpoints/` 下写一个文件。另一个进程通过 `workflow.run(checkpoint_id=..., responses={...})` 恢复。
+5. **可包装**：`fulfillment_agent = workflow.as_agent("ZavaFulfillment")` 把整张图暴露成一个 `Agent`，给 LAB 5 用。
 
 ### 本 LAB 读取哪些数据
 
@@ -50,13 +51,13 @@ ZavaShop 的「下单到出仓」流程长这样：
 
 ## 学习目标
 
-- 用 `Executor` + `@handler` 写自定义节点；用 `Agent` 直接作为节点（agent-as-executor）。
-- 用 `WorkflowBuilder` 构图：`start_executor` + `add_edge` + `output_from`。
-- 用 `ConcurrentBuilder` 或显式 fan-out 让 *库存检查* 与 *物流报价* 并行，并在 *仓位分配* 处 fan-in。
-- 用 `ctx.request_info(...)` 做 HITL；外部用 `workflow.run(responses={...})` 回填。
-- 用 `checkpoint_storage=...` + `@step` 缓存让 workflow **可断点续跑**。
-- 用 `workflow.as_agent(...)` 把整个 workflow 暴露成 `Agent` 接口。
-- 流式消费 `executor_invoked / executor_completed / request_info / superstep_completed / output` 事件。
+- 用 `Executor` + `@handler` 写类型化的自定义节点；用 `@executor` 写一次性的函数节点。
+- 用 `WorkflowBuilder(start_executor=, name=, output_from=, checkpoint_storage=)` + `.add_fan_out_edges` / `.add_fan_in_edges` / `.add_edge` 构图。
+- 通过从 `intake` 显式 fan-out，让 *库存检查* 与 *物流报价* 在 `allocator` 处 fan-in，实现 **并行**。
+- 用 `ctx.request_info(request_data=ApprovalRequest, response_type=ApprovalResponse)` 做 HITL；用 `@response_handler` 恢复。
+- 用 `FileCheckpointStorage(storage_path=..., allowed_checkpoint_types=[...])` 让用户 dataclass 能被序列化与反序列化。
+- 用 `workflow.as_agent("ZavaFulfillment")` 把整个 workflow 暴露成 `Agent` 接口。
+- 流式消费 `executor_invoked / executor_completed / request_info / superstep_completed / output` 事件 —— 只能用 `event.executor_id`；`event.source_executor_id` 只在 `event.type == "request_info"` 时才安全。
 
 ---
 
@@ -87,141 +88,276 @@ I'm doing LAB 4 in Python — build the ZavaShop fulfillment workflow with concu
 
 Coding Agent 会：
 
-1. 加载 [`.github/skills/agent-framework-workflows-py/SKILL.md`](../../.github/skills/agent-framework-workflows-py/SKILL.md)。
-2. 加载本 LAB README；顺手 `search` 一下 LAB 1 的 `get_stock` 是否可复用。
+1. 加载 [`.github/skills/agent-framework-workflows-py/SKILL.md`](../../.github/skills/agent-framework-workflows-py/SKILL.md) 以及 `references/parallelism.md` / `references/human_in_the_loop.md` / `references/checkpointing.md` / `references/composition.md` 这几个子页。
+2. 加载本 LAB README，以及 SKILL 里 [§Workshop‑verified gotchas](../../.github/skills/agent-framework-workflows-py/SKILL.md#workshop-verified-gotchas-lab-04) 那一段。
 3. 在 [`workshop/LAB04-fulfillment-workflow/`](.) 下创建 `fulfillment_workflow.py`：
    ```
    intake ─┬► stock_check ─┐
-          └► shipping_quote ┴► allocator ► approval (HITL) ► dispatch ► finance
+           └► shipping_quote ┴► allocator ► approval (HITL) ► dispatch ► finance
    ```
-   - `intake / allocator / dispatch / finance` 用 `@executor` 函数节点
-   - `stock_check / shipping_quote / approval` 用 `Agent` (FoundryChatClient + gpt-5.5)
-   - `ConcurrentBuilder` 实现 stock+shipping 并行
-   - `approval` 节点 ≥ 1000 USD 调用 `ctx.request_info(...)`
-   - `FileCheckpointStorage(".checkpoints")`
-   - 最后 `workflow.as_agent(name="ZavaFulfillment")` 供 LAB 5 使用
-4. 跑两个场景：< 1000 USD 一气呾成；≥ 1000 USD 暂停后手动回填 `responses={...}` 恢复。再补一个 Ctrl+C + `checkpoint_id` 续跑场景。
+   - 7 个节点全是确定性 Python executor —— `intake / approval` 是 `class … (Executor)` 子类，用 `@handler` + `@response_handler`；`stock_check / shipping_quote / allocator / dispatch / finance` 是 `@executor` 函数节点。
+   - 该文件 **不要** 写 `from __future__ import annotations` —— 它会让 `@response_handler` 校验器读到 `WorkflowContext[...]` 的字符串注解，校验直接 raise。
+   - `IntakeExecutor` 要暴露 **两个** `@handler`（`str` 和 `list[Message]`），这样同一个节点既能被 `workflow.run("ORD-…")` 直接调用，也能被 `workflow.as_agent(…).run("ORD-…")` 调用。
+   - 并发用 `.add_fan_out_edges(intake, [stock_check, shipping_quote])` + `.add_fan_in_edges([stock_check, shipping_quote], allocator)` —— **不用** `ConcurrentBuilder`（那是给聊天 Agent 用的）。
+   - `approval` 在总额 ≥ $1000 时调用 `ctx.request_info(request_data=ApprovalRequest, response_type=ApprovalResponse)`；用 `@response_handler` 恢复。
+   - `FileCheckpointStorage(storage_path=".checkpoints", allowed_checkpoint_types=[...])` —— 把每个用户 dataclass 都按 `module:QualName` 形式列进 allow-list（`__main__` 和 `fulfillment_workflow` 两个 module 都要列），否则 resume 无法反序列化。
+   - 文件末尾 `fulfillment_agent = workflow.as_agent("ZavaFulfillment")` 供 LAB 5 用。
+4. 跑两个场景：< $1000 端到端跑完（场景 A）；≥ $1000 在 `approval` 暂停，用 **新建的 workflow 实例** 加 `responses={...}` 从 checkpoint 恢复（场景 B）。Coding Agent 不会跳过 `ctx.request_info`，也不会复用同一个已暂停的 `Workflow` 实例 —— 见下方 gotcha 列表。
 
 > Coding Agent 不会跳过 `ctx.request_info` 或手火提交废除检查点 —— 这是 LAB 的核心考点。
 
-### Step 2 — 定义五个节点
+### Step 2 — 定义 7 个节点
+
+边上跑的是类型化 dataclass，不是裸 `str`。完整源码在 [`fulfillment_workflow.py`](./fulfillment_workflow.py)，下面只放骨架。
 
 ```python
+# 重要：这个文件不要写 `from __future__ import annotations`。
+# `@response_handler` 校验器会读 WorkflowContext[...] 的原始注解字符串；
+# 延迟注解（deferred annotations）会让它解析不到泛型，直接 raise。
+
 import sys
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Any, Literal, Never
+
+from agent_framework import (
+    Executor, FileCheckpointStorage, Message, WorkflowBuilder,
+    WorkflowContext, executor, handler, response_handler,
+)
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "data"))
-from zava_data import find_order, find_stock, load_carriers
+from zava_data import find_order, find_stock, load_carriers, load_skus, load_warehouses
 
-# 1. intake：拿订单号，在 orders.json 里查出 OrderDraft
-@executor(id="intake")
-async def intake(order_id: str, ctx: WorkflowContext[OrderDraft]) -> None:
-    raw = find_order(order_id)
-    if raw is None:
-        raise ValueError(f"Unknown order {order_id}")
-    order = OrderDraft(**raw)              # 不要 parse 自由文本 — 走 fixture
-    await ctx.send_message(order)
+HITL_THRESHOLD_USD = 1000.0
 
-# 2. stock_agent 工具：复用 LAB 1 对 find_stock 的封装
-def get_stock(sku: str, warehouse: str) -> str:
-    row = find_stock(sku, warehouse)
-    return "ok" if row and row["on_hand"] >= 1 else "short"
 
-# 3. shipping_agent 工具：从 carriers.json 拉取承运商
-def quote_freight(destination_country: str, weight_kg: float) -> list[dict]:
-    quotes = []
-    for c in load_carriers():
-        if destination_country in c["lanes"]:
-            price = round(c["base_usd"] + c["per_kg_usd"] * weight_kg, 2)
-            quotes.append({
-                "carrier": c["carrier_id"],
-                "name": c["name"],
-                "price_usd": price,
-                "transit_days": c["transit_days_typical"],
-            })
-    return quotes[:3]
+@dataclass
+class OrderRecord:
+    order_id: str
+    customer_id: str
+    lines: list[dict[str, Any]]
+    ship_to_city: str
+    ship_to_warehouse: str
+    total_usd: float
 
-# 2 & 3：stock_check / shipping_quote 用 Agent
-stock_agent = Agent(
-    client=FoundryChatClient(project_endpoint=..., model="gpt-5.5", credential=...),
-    name="StockChecker",
-    instructions="用 get_stock 工具确认订单中每个 SKU 是否可发；输出 JSON {sku: ok|short}",
-    tools=[get_stock],
-)
-shipping_agent = Agent(
-    ...,
-    name="ShippingQuoter",
-    instructions="用 quote_freight 工具给出 3 个承运商报价，输出 JSON",
-    tools=[quote_freight],
-)
+# … StockReport / FreightQuote / AllocationPlan / ApprovalRequest / ApprovalResponse / DispatchResult …
 
-# 4. allocator：把库存 + 运价 merge 成 AllocationPlan
+
+# 1. intake —— 类节点，暴露两个 @handler，让同一个节点同时支持
+#    workflow.run("ORD-…") 和 workflow.as_agent().run("ORD-…")
+class IntakeExecutor(Executor):
+    def __init__(self, id: str = "intake") -> None:
+        super().__init__(id=id)
+
+    async def _emit(self, order_id: str, ctx: WorkflowContext[OrderRecord]) -> None:
+        raw = find_order(order_id)
+        if raw is None:
+            raise ValueError(f"Unknown order: {order_id}")
+        await ctx.send_message(OrderRecord(**raw))
+
+    @handler
+    async def from_string(self, order_id: str, ctx: WorkflowContext[OrderRecord]) -> None:
+        await self._emit(order_id.strip(), ctx)
+
+    @handler
+    async def from_messages(self, messages: list[Message], ctx: WorkflowContext[OrderRecord]) -> None:
+        # as_agent() 永远派发 list[Message]，取最后一条 user 消息的文本即可
+        await self._emit((messages[-1].text or "").strip(), ctx)
+
+
+# 2 & 3. stock_check / shipping_quote —— 纯 @executor 函数；本 LAB 不需要
+#         走 LLM，inventory.json + carriers.json 都是确定性的
+@executor(id="stock_check")
+async def stock_check(order: OrderRecord, ctx: WorkflowContext[LegResult]) -> None:
+    rows = [find_stock(ln["sku"], order.ship_to_warehouse) for ln in order.lines]
+    # …生成 StockReport，再 send_message(LegResult(kind="stock", …))
+    await ctx.send_message(LegResult(kind="stock", order=order, stock=report))
+
+
+@executor(id="shipping_quote")
+async def shipping_quote(order: OrderRecord, ctx: WorkflowContext[LegResult]) -> None:
+    quotes = [
+        CarrierQuote(c["carrier_id"], c["name"],
+                     round(c["base_usd"] + c["per_kg_usd"] * total_kg, 2),
+                     int(c["transit_days_typical"]))
+        for c in load_carriers() if lane in c["lanes"]
+    ][:3]
+    await ctx.send_message(LegResult(kind="freight", order=order, freight=fq))
+
+
+# 4. allocator —— fan-in,收到 list[LegResult]
 @executor(id="allocator")
-async def allocator(parts: list, ctx: WorkflowContext[AllocationPlan]) -> None:
-    plan = merge(parts)
+async def allocator(legs: list[LegResult], ctx: WorkflowContext[AllocationPlan]) -> None:
+    stock_leg   = next(l for l in legs if l.kind == "stock")
+    freight_leg = next(l for l in legs if l.kind == "freight")
+    plan = AllocationPlan(order=stock_leg.order, stock=stock_leg.stock,
+                          freight=freight_leg.freight,
+                          total_usd=round(stock_leg.order.total_usd
+                                          + freight_leg.freight.cheapest.price_usd, 2))
     await ctx.send_message(plan)
 
-# 5. approval：HITL
-@executor(id="approval")
-async def approval(plan: AllocationPlan, ctx: WorkflowContext[AllocationPlan]) -> None:
-    if plan.total_usd >= 1000:
-        decision = await ctx.request_info(
-            prompt=f"订单总金额 ${plan.total_usd}，是否放行？",
-            request_type="supervisor_yes_no",
-        )
-        if not decision["approved"]:
-            await ctx.yield_output({"status": "rejected", "reason": decision.get("reason")})
+
+# 5. approval —— HITL 闸门;self._pending 通过 on_checkpoint_save/restore 持久化
+class ApprovalExecutor(Executor):
+    def __init__(self, id: str = "approval") -> None:
+        super().__init__(id=id)
+        self._pending: dict[str, Any] | None = None  # AllocationPlan 的 JSON-able 形式
+
+    @handler
+    async def gate(self, plan: AllocationPlan,
+                   ctx: WorkflowContext[AllocationPlan, dict[str, Any]]) -> None:
+        if plan.total_usd < HITL_THRESHOLD_USD:
+            await ctx.send_message(plan)
             return
-    await ctx.send_message(plan)
+        self._pending = dataclasses.asdict(plan)
+        await ctx.request_info(
+            request_data=ApprovalRequest(
+                order_id=plan.order.order_id,
+                customer_id=plan.order.customer_id,
+                total_usd=plan.total_usd,
+                reason="stock_shortage" if not plan.stock.all_in_stock
+                       else "amount_over_threshold",
+            ),
+            response_type=ApprovalResponse,
+        )
 
-# 6. dispatch + 7. finance：@executor，分别发出仓单 / 财务凭证
+    @response_handler
+    async def resume(
+        self,
+        original: ApprovalRequest,
+        reply: ApprovalResponse,
+        ctx: WorkflowContext[AllocationPlan, dict[str, Any]],
+    ) -> None:
+        plan = _plan_from_dict(self._pending)
+        self._pending = None
+        if not reply.approved:
+            await ctx.yield_output({"status": "rejected",
+                                    "order_id": plan.order.order_id,
+                                    "reason": reply.reason})
+            return
+        await ctx.send_message(plan)
+
+    async def on_checkpoint_save(self) -> dict[str, Any]:
+        return {"pending": self._pending}
+
+    async def on_checkpoint_restore(self, state: dict[str, Any]) -> None:
+        self._pending = state.get("pending")
+
+
+# 6. dispatch + 7. finance —— @executor，发出仓单/财务凭证
+@executor(id="dispatch")
+async def dispatch(plan: AllocationPlan, ctx: WorkflowContext[DispatchResult]) -> None: ...
+
+@executor(id="finance")
+async def finance(result: DispatchResult,
+                  ctx: WorkflowContext[Never, dict[str, Any]]) -> None:
+    await ctx.yield_output({"status": "shipped", "order_id": result.order_id, ...})
 ```
 
-> **查表，不 parse。** intake 节点只拿订单号去 [`orders.json`](../data/orders.json) 查，不去 parse 客户的自然语言句子，下游节点才能保持确定性，同一份 fixture 也能服务 LAB 5。
+> **查表，不 parse。** `intake` 拿订单号去 [`orders.json`](../data/orders.json) 查，不去 parse 客户的自然语言，下游节点才能保持确定性，同一份 fixture 也能服务 LAB 5。`from_messages` 这个 handler 只是为了让 `workflow.as_agent()`（它永远派发 `list[Message]`）也能走到同一个 `_emit`。
 
 ### Step 3 — 组装 + checkpoint + as_agent
 
 ```python
-from agent_framework import WorkflowBuilder, FileCheckpointStorage
-from agent_framework.orchestrations import ConcurrentBuilder
+def build_workflow():
+    CHECKPOINT_DIR.mkdir(parents=True, exist_ok=True)
 
-# concurrent fan-out
-parallel = ConcurrentBuilder().add(stock_agent).add(shipping_agent).build()
+    # FileCheckpointStorage 反序列化时做 type allow-list 校验。
+    # 每个用户 dataclass 都得在 __main__（CLI 模式）和 'fulfillment_workflow'
+    # （LAB 5 import 这个模块时）下都登记一遍。
+    user_types = (
+        "OrderRecord", "StockLine", "StockReport", "CarrierQuote",
+        "FreightQuote", "LegResult", "AllocationPlan",
+        "ApprovalRequest", "ApprovalResponse", "DispatchResult",
+    )
+    allowed = sorted({
+        f"{m}:{t}"
+        for m in (__name__, "__main__", "fulfillment_workflow")
+        for t in user_types
+    })
 
-workflow = (
-    WorkflowBuilder(start_executor=intake)
-    .add_edge(intake, parallel)
-    .add_edge(parallel, allocator)
-    .add_edge(allocator, approval)
-    .add_edge(approval, dispatch)
-    .add_edge(dispatch, finance)
-    .with_checkpoint_storage(FileCheckpointStorage(".checkpoints"))
-    .build()
-)
+    storage = FileCheckpointStorage(
+        storage_path=str(CHECKPOINT_DIR),
+        allowed_checkpoint_types=allowed,
+    )
+    intake = IntakeExecutor()
+    approval = ApprovalExecutor()
+    wf = (
+        WorkflowBuilder(
+            start_executor=intake,
+            checkpoint_storage=storage,
+            name="ZavaFulfillment",
+            output_from=[finance, approval],  # finance 出货成功;approval 拒绝时
+        )
+        .add_fan_out_edges(intake, [stock_check, shipping_quote])  # 并行
+        .add_fan_in_edges([stock_check, shipping_quote], allocator)  # 合流
+        .add_edge(allocator, approval)
+        .add_edge(approval, dispatch)
+        .add_edge(dispatch, finance)
+        .build()
+    )
+    return wf, storage
 
-# 暴露成 Agent，给 LAB 5 用
-fulfillment_agent = workflow.as_agent(name="ZavaFulfillment")
+
+workflow, checkpoint_storage = build_workflow()
+fulfillment_agent = workflow.as_agent("ZavaFulfillment")  # 给 LAB 5 用
 ```
 
-### Step 4 — 跑两次：一次 < 1000，一次 ≥ 1000 触发 HITL
+### Step 4 — 跑两次：一次 < $1000，一次 ≥ $1000 触发 HITL
 
 ```python
-# 场景 A：ORD-20260524-001 总额 $196.50 — 全流程跑完，不走 HITL
-await workflow.run("ORD-20260524-001")
+# 场景 A —— ORD-20260524-001（$196.50）：不会出 request_info，finance 直接落地
+async for event in workflow.run("ORD-20260524-001", stream=True, include_status_events=False):
+    if event.type == "executor_invoked":
+        print("  ►", event.executor_id)
+    elif event.type == "output":
+        print("  ★", event.data)        # {"status": "shipped", ...}
 
-# 场景 B：ORD-20260524-002 总额 $1500.00 — 触发 request_info
-run = workflow.run_stream("ORD-20260524-002")
-async for event in run:
-    if event.kind == "request_info":
-        request_id, prompt = event.request_id, event.prompt
-        print("主管审批：", prompt)
-        # 模拟审批通过
-        await workflow.run(responses={request_id: {"approved": True}})
+# 场景 B —— ORD-20260524-002（$1500 货 + $534.50 运费 = $2034.50）：在 approval 暂停
+pending: dict[str, ApprovalRequest] = {}
+async for event in workflow.run("ORD-20260524-002", stream=True, include_status_events=False):
+    if event.type == "request_info":
+        pending[event.request_id] = event.data
+    # 重要：不要在这里 break。checkpoint 在每个 super-step 结束后才写盘，
+    # 提前 break 会丢掉那个携带 pending 请求的 checkpoint —— 后续 resume 会报
+    # "No pending requests found in workflow context"。
+    # workflow 已经暂停，让 async for 自然走到尽头即可。
 ```
 
-### Step 5 — 断点续跑
+> 只用 `event.executor_id`，不要用 `event.source_executor_id` —— 后者是个 property，对除了 `"request_info"` 之外的事件类型都会直接抛 `RuntimeError`。
 
-故意 `Ctrl+C` 第二次执行；记录 `checkpoint_id`；再用 `workflow.run(checkpoint_id=...)` 恢复，确认从中断点继续而非从头跑。
+### Step 5 — 从 checkpoint 续跑
+
+场景 B 的 stream 走完之后，**当前进程或者一个全新进程** 都可以新建一个 workflow 实例，把 `checkpoint_id` 和 `responses` 一起塞进 `run(...)`：
+
+```python
+latest = await checkpoint_storage.get_latest(workflow_name=workflow.name)
+fresh_wf, _ = build_workflow()              # 必须是新的 Workflow 实例
+responses = {
+    req_id: ApprovalResponse(approved=True, reason="主管：放行")
+    for req_id in pending
+}
+async for event in fresh_wf.run(checkpoint_id=latest.checkpoint_id,
+                                responses=responses,
+                                stream=True,
+                                include_status_events=False):
+    if event.type == "output":
+        print("voucher:", event.data)       # → {"status": "shipped", ...}
+```
+
+> 原来那个 `workflow` 在 `request_info` 暂停之后仍然 `_is_running=True`，再次 `workflow.run(...)` 会 raise `Workflow is already running. Concurrent executions are not allowed.`。新建一个 `Workflow`（共用同样的 `.checkpoints/` 路径和 allow-list）就相当于一个新进程接管那份暂停状态。
+
+### Workshop 验证过的 gotcha（写代码前必读）
+
+下面 7 条都是在 LAB 4 的可工作实现里实测过的；环境是 `agent-framework 1.0.0rc3`：
+
+1. **不要写 `from __future__ import annotations`。** `@response_handler` 的校验器（`_request_info_mixin.py`）会读 `WorkflowContext[X, Y]` 的原始注解，如果是字符串就 raise。这个文件请保持「注解立即解析」。
+2. **`workflow.as_agent()` 永远派发 `list[Message]`** 到 start executor —— 它会 assert `is_type_compatible(list[Message], start.input_types)`。如果你真正的 intake 想接 `str`，就暴露 **两个** `@handler`（`str` + `list[Message]`），让它们共用一个私有 `_emit`。
+3. **`FileCheckpointStorage` 是类型 allow-list 制。** 每个用户 dataclass 都要在 `allowed_checkpoint_types=["__main__:OrderRecord", "fulfillment_workflow:OrderRecord", …]` 里登记，否则 resume 会报 `Checkpoint deserialization blocked for type '…'`。
+4. **`request_info` 之后把 stream 跑完。** checkpoint 在 super-step 结束时才会落盘。如果你一看到 `request_info` 就 `break`，那个携带 pending 请求的 checkpoint 还没写到磁盘 —— resume 会报 `No pending requests found in workflow context`。让 `async for` 自然结束就行，workflow 已经停下了。
+5. **暂停中的 workflow 实例不能再 run。** 在 `request_info` 暂停后，原 `Workflow` 仍然 `_is_running=True`。要恢复的话，用 `build_workflow()` 新建一个实例，调用 `fresh_wf.run(checkpoint_id=..., responses=...)`。
+6. **`event.source_executor_id` 对非 `request_info` 事件会 raise** —— 全程统一用 `event.executor_id`。
+7. **不要用 `ConcurrentBuilder` 包类型化 executor。** `ConcurrentBuilder` 把 user prompt 分发给聊天 Agent 并聚合 `list[Message]`；LAB 4 是把类型化的 `OrderRecord` 扇给两个 executor，再以 `list[LegResult]` 合流 —— 用 `.add_fan_out_edges` + `.add_fan_in_edges` 即可。
 
 ---
 
@@ -249,94 +385,179 @@ async for event in run:
 I'm doing LAB 4 in C# — build the order-fulfillment workflow with HITL approval and checkpoint resume.
 ```
 
-会在 [`workshop/LAB04-fulfillment-workflow/`](.) 下创建 `FulfillmentWorkflow/`，link `..\..\data\ZavaData.cs`，依赖：`Microsoft.Agents.AI`、`Microsoft.Agents.AI.Workflows`、`Microsoft.Agents.AI.Foundry`、`Azure.AI.Projects`、`Azure.Identity`。
+会在 [`workshop/LAB04-fulfillment-workflow/`](.) 下创建 `FulfillmentWorkflow/`，link `..\..\data\ZavaData.cs`，依赖（全部使用 `Version="*-*"`）：`Microsoft.Agents.AI`、`Microsoft.Agents.AI.Workflows`、`Microsoft.Extensions.AI`、`Azure.Identity`。`.csproj` 里还要加 `<NoWarn>$(NoWarn);NU1604;NU1902;MAAI001</NoWarn>`，否则预览版的通配符依赖和 `[Experimental]` 标记会把编译警告卡死。和 LAB 1 – LAB 3 不同，本 LAB **不调用任何 Foundry Agent** —— 七个节点都是确定性 .NET executor —— 所以不需要 `Microsoft.Agents.AI.Foundry` 与 `Azure.AI.Projects`。
 
-### Step 2 — 用 `WorkflowBuilder` 搭 DAG
+> .NET 赛道当前安装的是 **`Microsoft.Agents.AI.Workflows` 1.7.0**（2025 年 11 月通过 `Version="*-*"` 解析的版本）。以下 API 已在该版本验证。如果你的环境探测出的结果与本文不符，以探测为准，并阅读 [`.github/skills/agent-framework-workflows-csharp/SKILL.md`](../../.github/skills/agent-framework-workflows-csharp/SKILL.md) 底部的 **Workshop-verified gotchas (LAB 04)** 一节。
+
+### Step 2 — 用 `WorkflowBuilder` 搭强类型 DAG
+
+每一个节点都是独立的 `Executor<TIn, TOut>`（或者只走 `IWorkflowContext` 的 `Executor<TIn>`），用 fan-out / fan-in barrier / 条件边拼起来：
 
 ```csharp
 using Microsoft.Agents.AI.Workflows;
 using Microsoft.Agents.AI.Workflows.Checkpointing;
 using ZavaShop.Workshop.Data;
 
-var workflow = new WorkflowBuilder()
-    .AddExecutor<OrderId, OrderRecord>("intake",        IntakeAsync)
-    .AddExecutor<OrderRecord, StockResult>("stock_check",  StockCheckAsync)
-    .AddExecutor<OrderRecord, QuoteResult>("shipping_quote", ShippingQuoteAsync)
-    .AddExecutor<(StockResult, QuoteResult), AllocationPlan>("allocation", AllocateAsync)
-    .AddExecutor<AllocationPlan, ApprovalDecision>("approval", ApprovalAsync)
-    .AddExecutor<ApprovalDecision, DispatchResult>("dispatch", DispatchAsync)
-    .AddExecutor<DispatchResult, FinanceResult>("finance", FinanceAsync)
-    .AddEdge("intake", "stock_check")
-    .AddEdge("intake", "shipping_quote")               // fan-out
-    .AddFanInEdge(["stock_check", "shipping_quote"], "allocation")
-    .AddEdge("allocation", "approval")
-    .AddEdge("approval",   "dispatch")
-    .AddEdge("dispatch",   "finance")
-    .SetStartExecutor("intake")
-    .WithCheckpointing(new FileCheckpointStorage("./_checkpoints"))
+var intake          = new IntakeExecutor();
+var stockCheck      = new StockCheckExecutor();
+var shippingQuote   = new ShippingQuoteExecutor();
+var allocator       = new AllocatorExecutor();          // Executor<LegResult, AllocationPlan?>
+var approvalBuilder = new ApprovalRequestBuilderExecutor();
+var approvalPort    = RequestPort.Create<HumanApprovalRequest, HumanApprovalResponse>("approval_port");
+var approvalResume  = new ApprovalResumeExecutor();     // Executor<HumanApprovalResponse>
+var dispatch        = new DispatchExecutor();
+var finance         = new FinanceExecutor();            // Executor<DispatchResult>
+
+Workflow workflow = new WorkflowBuilder(intake)
+    .AddFanOutEdge(intake, [stockCheck, shippingQuote])
+    .AddFanInBarrierEdge([stockCheck, shippingQuote], allocator)
+    // 条件边：≥ $1000 走 HITL，< $1000 直接分单。
+    .AddEdge<AllocationPlan?>(allocator, approvalBuilder,
+        condition: msg => msg is AllocationPlan plan && plan.TotalUsd >= 1000m)
+    .AddEdge<AllocationPlan?>(allocator, dispatch,
+        condition: msg => msg is AllocationPlan plan && plan.TotalUsd <  1000m)
+    .AddEdge(approvalBuilder, approvalPort)
+    .AddEdge(approvalPort,    approvalResume)
+    .AddEdge<AllocationPlan>(approvalResume, dispatch)   // 已审批 → 继续派单
+    .AddEdge(dispatch, finance)
+    .WithOutputFrom(finance, approvalResume)             // 发货 / 拒绝两条出口
+    .WithName("ZavaFulfillment")
+    .WithDescription("Order intake → stock + freight → HITL gate → dispatch → finance.")
     .Build();
 ```
 
-### Step 3 — `approval` 节点里接 HITL
+这一段里有三个 SKILL 主文档里没有强调的 .NET 专属坑（详见 C# SKILL 底部的 gotchas 章节）：
+
+- **fan-in barrier 是逐条投递**，不会自动打包成 `List<LegResult>` —— 见 C# SKILL 的 gotcha #1。`AllocatorExecutor` 用实例字段 buffer，凑齐两条腿前一直返回 `null`；下游再用条件边 `msg is AllocationPlan plan` 过滤掉 `null` 哨兵。
+- **HITL 用 `RequestPort`**，不是不存在的 `ctx.RequestInfoAsync(...)` 调用。`ApprovalRequestBuilderExecutor` 把计划写进 shared state（scope `"Approval"`、key `"pending_plan"`），再把 `HumanApprovalRequest` 转发给 port；resume executor 在审批回来后从 shared state 读回计划。
+- **`ApprovalResumeExecutor` 是 `Executor<HumanApprovalResponse>`（没有 `TOut`）** —— 既要 `SendMessageAsync(plan)` 给派单（通过），也要 `YieldOutputAsync(rejected)` 给外层（拒绝）。两种行为必须在 `ConfigureProtocol` 里同时声明（C# SKILL 的 gotcha #3）。
+
+### Step 3 — 接持久化 checkpoint + HITL 事件循环
 
 ```csharp
-static async Task<ApprovalDecision> ApprovalAsync(AllocationPlan plan, IWorkflowContext ctx)
+using Microsoft.Agents.AI.Workflows.Checkpointing;
+
+var store = new FileSystemJsonCheckpointStore(new DirectoryInfo("./_checkpoints"));
+CheckpointManager manager = CheckpointManager.CreateJson(store, customOptions: null);
+
+await using StreamingRun run = await InProcessExecution.RunStreamingAsync(
+    workflow, "ORD-20260524-002", manager, sessionId: Guid.NewGuid().ToString(), CancellationToken.None);
+
+CheckpointInfo? lastCheckpoint = null;
+await foreach (WorkflowEvent evt in run.WatchStreamAsync())
 {
-    if (plan.TotalUsd < 1000m)
-        return new ApprovalDecision(true, "auto-approved (<$1000)");
+    switch (evt)
+    {
+        case SuperStepCompletedEvent s when s.CompletionInfo?.Checkpoint is { } cp:
+            lastCheckpoint = cp;
+            break;
 
-    var hitl = await ctx.RequestInfoAsync<HumanApprovalRequest, HumanApprovalResponse>(
-        new HumanApprovalRequest(plan.OrderId, plan.TotalUsd, plan.Reason));
+        case RequestInfoEvent req
+            when req.Request.TryGetDataAs<HumanApprovalRequest>(out HumanApprovalRequest? ask):
+        {
+            bool decision = PromptOperator(ask);   // LAB 里就是 Console.ReadLine
+            ExternalResponse response = req.Request.CreateResponse(
+                new HumanApprovalResponse(decision, decision ? "approved" : "rejected"));
+            await run.SendResponseAsync(response);
+            break;
+        }
 
-    return new ApprovalDecision(hitl.Approve, hitl.Comment);
+        case WorkflowOutputEvent done:
+            Console.WriteLine($"Final → {done.Data}");
+            break;
+
+        case ExecutorFailedEvent fail:
+            Console.Error.WriteLine($"{fail.ExecutorId} failed: {fail.Data}");
+            break;
+    }
+}
+
+// 续跑 —— 全新 run、同一个 manager、没有 sessionId：
+await using StreamingRun resumed = await InProcessExecution.ResumeStreamingAsync(
+    workflow, lastCheckpoint!, manager, CancellationToken.None);
+```
+
+提醒：
+- 流式 API 是 `RunStreamingAsync` / `ResumeStreamingAsync`（不是 `StreamAsync` / `ResumeStreamAsync`）；`Checkpointed<TRun>` 不存在 —— 调用返回的是裸 `StreamingRun`（C# SKILL gotcha #2）。
+- 一定要处理 `ExecutorFailedEvent` 和 `WorkflowErrorEvent`：executor 抛出的异常会变成事件，不会从 `WatchStreamAsync` 抛出来。
+- 取出 request payload 只能用 `request.TryGetDataAs<T>(out T)`；回执用 `request.CreateResponse(value)` 构造（gotcha #4）。
+
+### Step 4 — 每个 executor 都走 `ZavaData`
+
+```csharp
+internal sealed class IntakeExecutor() : Executor<string, OrderRecord>("intake")
+{
+    public override ValueTask<OrderRecord> HandleAsync(
+        string orderId, IWorkflowContext ctx, CancellationToken ct = default)
+    {
+        JsonNode? order = ZavaData.FindOrder(orderId)
+            ?? throw new InvalidOperationException($"Unknown order {orderId}");
+        return ValueTask.FromResult(OrderRecord.FromJson(order));
+    }
+}
+
+internal sealed class ShippingQuoteExecutor() : Executor<OrderRecord, LegResult>("shipping_quote")
+{
+    public override ValueTask<LegResult> HandleAsync(
+        OrderRecord order, IWorkflowContext ctx, CancellationToken ct = default)
+    {
+        var quotes = ZavaData.LoadCarriers()
+            .Select(c => new CarrierQuote(
+                CarrierId: c["carrier_id"]!.GetValue<string>(),
+                EtaDays:   c["avg_lead_time_days"]!.GetValue<int>(),
+                PriceUsd:  Pricing.Quote(order, c)))
+            .OrderBy(q => q.PriceUsd)
+            .ToList();
+        return ValueTask.FromResult(new LegResult(Kind: "shipping_quote", Quotes: quotes));
+    }
 }
 ```
 
-外层事件循环抓 `RequestInfoEvent`，在控制台提示操作员，然后 `workflow.SendResponseAsync(...)` — 与 Python 的 `ctx.request_info(...)` 同形。
+不允许内联 carrier 表 —— 所有数据都必须通过 `ZavaData.LoadCarriers()` / `ZavaData.FindOrder(id)` / `ZavaData.FindStock(sku, warehouse)` 来自 `carriers.json` / `orders.json` / `inventory.json`，这样 carrier id 才能跟 `FEDEX` / `DHL` / `USPS` / `ARAMEX` / `SFEXPRESS` 精确对上。库存只在 `DispatchExecutor`（审批通过之后）扣减一次。
 
-### Step 4 — `intake` 与 `shipping_quote` 走 `ZavaData`
-
-```csharp
-static Task<OrderRecord> IntakeAsync(OrderId id, IWorkflowContext ctx)
-{
-    var order = ZavaData.FindOrder(id.Value)
-                ?? throw new InvalidOperationException($"Unknown order {id.Value}");
-    return Task.FromResult(OrderRecord.FromJson(order));
-}
-
-static Task<QuoteResult> ShippingQuoteAsync(OrderRecord order, IWorkflowContext ctx)
-{
-    var quotes = ZavaData.LoadCarriers()
-        .Select(c => new CarrierQuote(
-            CarrierId: c["carrier_id"]!.GetValue<string>(),
-            EtaDays:   c["avg_lead_time_days"]!.GetValue<int>(),
-            PriceUsd:  Pricing.Quote(order, c)))
-        .OrderBy(q => q.PriceUsd)
-        .ToList();
-    return Task.FromResult(new QuoteResult(quotes));
-}
-```
-
-不允许内联 carrier 表 — 必须走 `ZavaData.LoadCarriers()`，这样 `FEDEX` / `DHL` / `USPS` / `ARAMEX` / `SFEXPRESS` ID 才跟验收标准对上。
-
-### Step 5 — 把整个 workflow 包为一个 Agent（C#）
+### Step 5 — 把整个 workflow 包成一个 `AIAgent`
 
 ```csharp
-AIAgent fulfillmentAgent = workflow.AsAgent(
-    name: "FulfillmentOrchestrator",
-    description: "Drives a ZavaShop order from intake to finance, with HITL approval above $1000.");
+using Microsoft.Agents.AI;
+using Microsoft.Agents.AI.Workflows;
+
+AIAgent fulfillmentAgent = workflow.AsAIAgent(
+    id:          "zava-fulfillment",
+    name:        "ZavaFulfillment",
+    description: "Drives a ZavaShop order from intake to finance, with HITL approval above $1000.",
+    includeWorkflowOutputsInResponse: true);
+
+AgentRunResponse response = await fulfillmentAgent.RunAsync("ORD-20260524-001");
+Console.WriteLine(response.Text);
 ```
 
-`fulfillmentAgent` 可以被 LAB 5 当作子 Agent 使用。
+扩展方法是 **`AsAIAgent`**（不是 `AsAgent`）—— C# SKILL gotcha #5。和 Python 不同，.NET 这边不要求 start executor 接 `list<ChatMessage>` —— `string` 订单号就够了。这个包装后的 `AIAgent` 可以直接喂给 LAB 5 当子 Agent。
 
-### Step 6 — 运行 + 断点续跑
+### Step 6 — 运行
 
 ```bash
+# 自动审批路径（< $1,000，全自动跑完，不弹控制台）
 dotnet run --project workshop/LAB04-fulfillment-workflow/FulfillmentWorkflow -- ORD-20260524-001
+
+# HITL 路径（> $1,000，会在控制台问你 approve / reject）
 dotnet run --project workshop/LAB04-fulfillment-workflow/FulfillmentWorkflow -- ORD-20260524-002
+
+# 默认模式 = 跑完两个场景 + 一次断点续跑演示，且不需要交互
+LAB04_AUTO_APPROVE=yes dotnet run --project workshop/LAB04-fulfillment-workflow/FulfillmentWorkflow
 ```
 
-在场景 B 审批环节按 `Ctrl+C`；记录打印出的 `checkpoint_id`；重跑时加 `-- ORD-20260524-002 --resume <id>`，确认从中断点继续跑且库存 **不会重复扣减**。验收标准适用不变。
+`LAB04_AUTO_APPROVE=yes` 会跳过 `Console.ReadLine`，自动回 "approve"，适合 CI / 快速复跑。无参数的默认运行会依次跑场景 A → 场景 B → 用场景 B 期间捕获的 **最后一个 `SuperStepCompletedEvent.CompletionInfo.Checkpoint`** 驱动续跑。每次跑都会在 `_checkpoints/` 目录下按 super-step 写 JSON 文件，并在 `_checkpoints/index.jsonl` 追加一行；清空该目录即可重置状态。验收标准与上文保持一致 —— .NET 赛道全部七条验收都靠本节中的 executor 与事件循环完成。
+
+### Workshop-verified gotchas（.NET）
+
+- **fan-in barrier 是逐条投递**，并不会自动打包成 `List<TOut>`（对强类型 executor）—— 用 Step 2 里的"实例 buffer + null 哨兵 + 条件边"组合。
+- **多出口 executor 必须 override `ConfigureProtocol`**，同时声明 `SendsMessageType` + `YieldsOutputType`；只贴 attribute 只能注册一种行为。
+- **把 workflow 包装成 agent 的扩展方法是 `AsAIAgent`**（不是 `AsAgent`）。
+- **`ResumeStreamingAsync` 是四参数** —— `(workflow, checkpoint, manager, ct)` —— 没有 `sessionId`。`Checkpointed<TRun>` 不存在。
+- **持久化 checkpoint** 用 `FileSystemJsonCheckpointStore` + `CheckpointManager.CreateJson(store, null)` —— .NET 里没有 `FileCheckpointStorage` 这个类型（那是 Python 的 API）。
+- **`<NoWarn>$(NoWarn);NU1604;NU1902;MAAI001</NoWarn>`** 必须加进 `.csproj`，否则通配符版本号 + `[Experimental]` 标记会把这三条警告全部点亮。
+
+完整列表（带代码片段）见 [`agent-framework-workflows-csharp/SKILL.md`](../../.github/skills/agent-framework-workflows-csharp/SKILL.md#workshop-verified-gotchas-lab-04) 底部。
 
 ---
 

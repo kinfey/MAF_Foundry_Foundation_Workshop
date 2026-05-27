@@ -474,3 +474,129 @@ await foreach (WorkflowEvent evt in run.WatchStreamAsync())
 - [references/edges.md](references/edges.md): Sequential, fan-out / fan-in, conditional edges, switch-case, multi-selection routing.
 - [references/agents-in-workflows.md](references/agents-in-workflows.md): Agents as executors, `BindAsExecutor`, `TurnToken`, `AgentWorkflowBuilder` patterns (sequential / concurrent / handoff / group chat / Magentic).
 - [references/checkpoints-and-hitl.md](references/checkpoints-and-hitl.md): `CheckpointManager`, super steps, `RestoreCheckpointAsync`, request ports, `ExternalRequest` / `ExternalResponse`.
+
+## Workshop-verified gotchas (LAB 04)
+
+These are the traps observed while building the ZavaShop fulfillment workflow in [`workshop/LAB04-fulfillment-workflow/FulfillmentWorkflow/Program.cs`](../../../workshop/LAB04-fulfillment-workflow/FulfillmentWorkflow/Program.cs). Every bullet has been reproduced against `Microsoft.Agents.AI.Workflows 1.7.0` (the version that resolves from `Version="*-*"` in November 2025). The patterns above (sequential, fan-out/fan-in with agents, `AgentWorkflowBuilder`) work as documented — these are the **typed-executor + HITL + checkpoint** corner cases that don't.
+
+1. **`AddFanInBarrierEdge` delivers each upstream message individually, not as a `List<TOut>`.** The "Aggregation executor for fan-in" pattern earlier in this SKILL (an `Executor<List<ChatMessage>>` that receives one bundle) only works for agent executors because `BindAsExecutor` + `TurnToken` machinery wraps the agent output. For **typed executors** that return `TOut` directly (e.g. `Executor<OrderRecord, LegResult>`), the join node receives the messages one at a time. Subclass `Executor<TOut, TJoin?>`, buffer inside an instance field, and gate downstream emission with a **null sentinel + conditional edge**:
+
+   ```csharp
+   internal sealed class AllocatorExecutor() : Executor<LegResult, AllocationPlan?>("allocator")
+   {
+       private readonly List<LegResult> _legs = new();
+       private const int ExpectedLegs = 2;   // stock_check + shipping_quote
+
+       public override ValueTask<AllocationPlan?> HandleAsync(
+           LegResult leg, IWorkflowContext ctx, CancellationToken ct = default)
+       {
+           _legs.Add(leg);
+           if (_legs.Count < ExpectedLegs)
+           {
+               return ValueTask.FromResult<AllocationPlan?>(null);  // sentinel — don't fire downstream yet
+           }
+
+           AllocationPlan plan = BuildPlan(_legs);
+           _legs.Clear();
+           return ValueTask.FromResult<AllocationPlan?>(plan);
+       }
+   }
+
+   // The conditional edge filters out the sentinel:
+   builder.AddEdge<AllocationPlan?>(allocator, approval, condition: msg => msg is AllocationPlan);
+   ```
+
+   The `OnMessageDeliveryFinishedAsync` recipe in [references/edges.md](references/edges.md) (the `SupplyChainAggregatorExecutor` snippet) also works, but only when the aggregator is a **terminal** node yielding workflow output. If the aggregator's result needs to flow into another executor (HITL gate, dispatcher, …), use the buffer-and-sentinel pattern above — `OnMessageDeliveryFinishedAsync` fires after the super-step closes, by which point the next executor has already missed its delivery window.
+
+2. **The streaming API names are `RunStreamingAsync` / `ResumeStreamingAsync`, not `StreamAsync` / `ResumeStreamAsync`.** And `ResumeStreamingAsync` takes **four** arguments — `(workflow, checkpoint, checkpointManager, cancellationToken)` — there is no `sessionId` parameter on the resume overload. There is also no `Checkpointed<TRun>` type; the call returns a bare `StreamingRun` whether or not a `CheckpointManager` was passed.
+
+   ```csharp
+   await using StreamingRun run = await InProcessExecution.RunStreamingAsync(
+       workflow, orderId, checkpointManager, sessionId: runId, cancellationToken: ct);
+
+   // Later — fresh process, fresh run:
+   await using StreamingRun resumed = await InProcessExecution.ResumeStreamingAsync(
+       workflow, savedCheckpoint, checkpointManager, ct);
+   ```
+
+3. **Multi-output executors must override `ConfigureProtocol`.** When one executor can both `SendMessageAsync(msg)` downstream *and* `YieldOutputAsync(output)` to the workflow stream — for example, an "approval resume" node that forwards an approved plan onto the dispatcher but yields a `RejectedVoucher` to the caller on rejection — the graph validator needs both declared. Subclass `Executor<TIn>` (no `TOut`) and override the protected `ConfigureProtocol`:
+
+   ```csharp
+   internal sealed class ApprovalResumeExecutor() : Executor<HumanApprovalResponse>("approval_resume")
+   {
+       protected override void ConfigureProtocol(ProtocolBuilder protocol)
+       {
+           base.ConfigureProtocol(protocol);
+           protocol.SendsMessageType(typeof(AllocationPlan));   // forward to dispatch
+           protocol.YieldsOutputType(typeof(RejectedVoucher));  // or yield rejection
+       }
+
+       public override async ValueTask HandleAsync(
+           HumanApprovalResponse resp, IWorkflowContext ctx, CancellationToken ct = default)
+       {
+           AllocationPlan? plan = await ctx.ReadStateAsync<AllocationPlan>("pending_plan", "Approval", ct);
+           if (resp.Approved && plan is not null) await ctx.SendMessageAsync(plan, ct);
+           else                                   await ctx.YieldOutputAsync(new RejectedVoucher(...), ct);
+       }
+   }
+   ```
+
+   The `[SendsMessage(...)]` / `[YieldsOutput(...)]` attributes from the earlier sections of this SKILL only register a *single* type each; `ConfigureProtocol` is the way to declare both behaviors on the same node. Attribute-only declaration on a multi-output executor will pass `Build()` but the runtime will drop the messages it wasn't told about.
+
+4. **`ExternalRequest` payload access is via `TryGetDataAs<T>(out T)`** — there is no `request.DataIs<T>()` or `request.Data as T`. Always go through the try-pattern, then build the response via `request.CreateResponse(value)`:
+
+   ```csharp
+   if (evt is RequestInfoEvent reqEvt &&
+       reqEvt.Request.TryGetDataAs<HumanApprovalRequest>(out HumanApprovalRequest? req))
+   {
+       bool decision = PromptUser(req);
+       ExternalResponse response = reqEvt.Request.CreateResponse(new HumanApprovalResponse(decision, "..."));
+       await run.SendResponseAsync(response);
+   }
+   ```
+
+5. **Wrap a typed workflow as an agent via `workflow.AsAIAgent(...)`, not `AsAgent(...)`.** The Python analog is `workflow.as_agent("ZavaFulfillment")`; in .NET the extension method is `Microsoft.Agents.AI.Workflows.WorkflowHostingExtensions.AsAIAgent(workflow, id, name, description, executionEnvironment, includeExceptionDetails, includeWorkflowOutputsInResponse)`. The returned `AIAgent` exposes the same `RunAsync` surface as any other agent.
+
+   ```csharp
+   AIAgent fulfillment = workflow.AsAIAgent(
+       id: "zava-fulfillment",
+       name: "ZavaFulfillment",
+       description: "Order intake → stock + freight → HITL gate → dispatch → finance.");
+
+   AgentRunResponse resp = await fulfillment.RunAsync("ORD-20260524-001");
+   ```
+
+   Unlike Python, the .NET wrapped agent does **not** require the start executor to accept `list[ChatMessage]` — any input type that matches the start executor's signature works (a `string` order id is fine in the LAB 04 sample).
+
+6. **Durable checkpoints use `FileSystemJsonCheckpointStore` + `CheckpointManager.CreateJson`.** `CheckpointManager.Default` is in-memory and is gone the moment the process exits — useless for a real HITL workflow where the human approver might come back the next day. For LAB 04, write to a directory and pass the store into `CheckpointManager.CreateJson` (the `customOptions` argument can be `null`):
+
+   ```csharp
+   using Microsoft.Agents.AI.Workflows.Checkpointing;
+
+   var store = new FileSystemJsonCheckpointStore(new DirectoryInfo("./_checkpoints"));
+   CheckpointManager manager = CheckpointManager.CreateJson(store, customOptions: null);
+   ```
+
+   Each super-step writes a JSON file plus a line to `index.jsonl` in the directory; `ResumeStreamingAsync(workflow, checkpoint, manager, ct)` rehydrates from any of them. The package names are `Microsoft.Agents.AI.Workflows.Checkpointing.FileSystemJsonCheckpointStore` and `Microsoft.Agents.AI.Workflows.CheckpointManager` — there is no `FileCheckpointStorage` type in .NET (that name is the Python API).
+
+7. **Conditional edge predicates over nullable types need null-handling inside the lambda.** `AddEdge<TMsg?>(source, target, condition: ...)` lets the sentinel through as `null`; you must guard inside the predicate so the compiler doesn't warn on member access:
+
+   ```csharp
+   builder.AddEdge<AllocationPlan?>(
+       allocator, approvalGate,
+       condition: msg => msg is AllocationPlan plan && plan.TotalUsd >= HitlThresholdUsd);
+   builder.AddEdge<AllocationPlan?>(
+       allocator, dispatch,
+       condition: msg => msg is AllocationPlan plan && plan.TotalUsd <  HitlThresholdUsd);
+   ```
+
+   The `msg is AllocationPlan plan` pattern both filters out the buffer sentinel from gotcha #1 *and* gives you a non-null reference for the threshold check, silencing CS8602 without sprinkling `!` operators.
+
+8. **`NU1604` / `NU1902` / `MAAI001` will fire** on a fresh project. The wildcard package version `Version="*-*"` triggers `NU1604` ("missing lower bound"); the prerelease agent SDK ships with known-vuln transitive deps that trigger `NU1902`; and `AgentSkillsProvider` / `AgentInlineSkill` are `[Experimental("MAAI001")]`. Add `<NoWarn>$(NoWarn);NU1604;NU1902;MAAI001</NoWarn>` to the `.csproj` so the build stays clean and the wildcards still pull the latest prerelease.
+
+Bonus shape rules surfaced by the same LAB:
+
+- The `Executor<TIn>` (no `TOut`) override is `public override ValueTask HandleAsync(TIn, IWorkflowContext, CancellationToken)` — note the non-generic `ValueTask`. Use it whenever your handler talks to the framework via `SendMessageAsync` / `YieldOutputAsync` instead of returning a value.
+- `WorkflowBuilder` exposes fluent `WithName(string)` / `WithDescription(string)` / `WithOutputFrom(params Executor[])` chained before `.Build()`. The name and description show up on the wrapped agent from gotcha #5 and on diagnostic traces.
+- `SuperStepCompletedEvent.CompletionInfo.Checkpoint` is the right tuple for collecting checkpoints — `evt.Checkpoint` and `evt.Data` do **not** exist on this event.
+- `ExecutorFailedEvent.Data` and `WorkflowErrorEvent.Data` are both `Exception` instances. Cast and rethrow if you want fail-fast semantics in the consumer.

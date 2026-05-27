@@ -1,0 +1,26 @@
+{
+  "workflow_name": "ZavaFulfillment",
+  "graph_signature_hash": "8f28abf551a5250ae87792edbd61fbd45002ff2196227a0a9eb92fefbba4df43",
+  "checkpoint_id": "5ac05170-8135-48f0-8bcf-6adde846989c",
+  "previous_checkpoint_id": "1bed8abb-7529-4b42-b808-5f4790337341",
+  "timestamp": "2026-05-27T03:51:21.324693+00:00",
+  "messages": {},
+  "state": {
+    "_workflow_run_kwargs": {},
+    "_executor_state": {
+      "intake": {},
+      "stock_check": {},
+      "shipping_quote": {},
+      "allocator": {},
+      "approval": {
+        "pending": null
+      },
+      "dispatch": {},
+      "finance": {}
+    }
+  },
+  "pending_request_info_events": {},
+  "iteration_count": 5,
+  "metadata": {},
+  "version": "1.0"
+}

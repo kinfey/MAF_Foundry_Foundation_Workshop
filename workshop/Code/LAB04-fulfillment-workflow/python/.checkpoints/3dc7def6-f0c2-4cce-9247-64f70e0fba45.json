@@ -1,0 +1,33 @@
+{
+  "workflow_name": "ZavaFulfillment",
+  "graph_signature_hash": "8f28abf551a5250ae87792edbd61fbd45002ff2196227a0a9eb92fefbba4df43",
+  "checkpoint_id": "3dc7def6-f0c2-4cce-9247-64f70e0fba45",
+  "previous_checkpoint_id": "8fde8fe3-5b1c-4c73-b766-5122ea0bd78c",
+  "timestamp": "2026-05-27T03:51:21.164418+00:00",
+  "messages": {
+    "allocator": [
+      {
+        "__pickled__": "gAWV6AMAAAAAAACMKmFnZW50X2ZyYW1ld29yay5fd29ya2Zsb3dzLl9ydW5uZXJfY29udGV4dJSMD1dvcmtmbG93TWVzc2FnZZSTlCmBlH2UKIwEZGF0YZSMCF9fbWFpbl9flIwOQWxsb2NhdGlvblBsYW6Uk5QpgZR9lCiMBW9yZGVylGgGjAtPcmRlclJlY29yZJSTlCmBlH2UKIwIb3JkZXJfaWSUjBBPUkQtMjAyNjA1MjQtMDAxlIwLY3VzdG9tZXJfaWSUjAdTVERfNDQ1lIwFbGluZXOUXZQofZQojANza3WUjAhTS1UtMzA1NZSMA3F0eZRLAYwOdW5pdF9wcmljZV91c2SUR0AygAAAAAAAdX2UKGgXjAhTS1UtNzQyMZRoGUsCaBpHQFZAAAAAAAB1ZYwMc2hpcF90b19jaXR5lIwHU2VhdHRsZZSMEXNoaXBfdG9fd2FyZWhvdXNllIwGU0VBLTAxlIwJdG90YWxfdXNklEdAaJAAAAAAAHVijAVzdG9ja5RoBowLU3RvY2tSZXBvcnSUk5QpgZR9lChoEGgRjAl3YXJlaG91c2WUaCBoFF2UKGgGjAlTdG9ja0xpbmWUk5QpgZR9lCiMA3NrdZRoGIwDcXR5lEsBjAdvbl9oYW5klEsOjAlhdmFpbGFibGWUSwiMCnN1ZmZpY2llbnSUiHViaCopgZR9lChoLWgcaC5LAmgvTTgBaDBNCQFoMYh1YmWMDGFsbF9pbl9zdG9ja5SIdWKMB2ZyZWlnaHSUaAaMDEZyZWlnaHRRdW90ZZSTlCmBlH2UKGgQaBGMBGxhbmWUjAtVUy1kb21lc3RpY5SMCHRvdGFsX2tnlEdAIszMzMzMzYwGcXVvdGVzlF2UKGgGjAxDYXJyaWVyUXVvdGWUk5QpgZR9lCiMCmNhcnJpZXJfaWSUjARVU1BTlIwEbmFtZZSMFVVTUFMgR3JvdW5kIEFkdmFudGFnZZSMCXByaWNlX3VzZJRHQDsuFHrhR66MDHRyYW5zaXRfZGF5c5RLBXViaEApgZR9lChoQ4wFRkVERViUaEWMDkZlZEV4IFByaW9yaXR5lGhHR0BLJmZmZmZmaEhLAnViZYwIY2hlYXBlc3SUaEF1YmghR0Br9cKPXCj2dWKMCXNvdXJjZV9pZJSMCWFsbG9jYXRvcpSMCXRhcmdldF9pZJROjAR0eXBllGgAjAtNZXNzYWdlVHlwZZSTlIwIc3RhbmRhcmSUhZRSlIwOdHJhY2VfY29udGV4dHOUTowPc291cmNlX3NwYW5faWRzlE6MG29yaWdpbmFsX3JlcXVlc3RfaW5mb19ldmVudJROdWIu",
+        "__type__": "agent_framework._workflows._runner_context:WorkflowMessage"
+      }
+    ]
+  },
+  "state": {
+    "_workflow_run_kwargs": {},
+    "_executor_state": {
+      "intake": {},
+      "stock_check": {},
+      "shipping_quote": {},
+      "allocator": {},
+      "approval": {
+        "pending": null
+      },
+      "dispatch": {},
+      "finance": {}
+    }
+  },
+  "pending_request_info_events": {},
+  "iteration_count": 2,
+  "metadata": {},
+  "version": "1.0"
+}

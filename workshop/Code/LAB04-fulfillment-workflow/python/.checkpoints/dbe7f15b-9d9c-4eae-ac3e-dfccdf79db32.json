@@ -1,0 +1,33 @@
+{
+  "workflow_name": "ZavaFulfillment",
+  "graph_signature_hash": "8f28abf551a5250ae87792edbd61fbd45002ff2196227a0a9eb92fefbba4df43",
+  "checkpoint_id": "dbe7f15b-9d9c-4eae-ac3e-dfccdf79db32",
+  "previous_checkpoint_id": null,
+  "timestamp": "2026-05-27T03:51:21.056689+00:00",
+  "messages": {
+    "intake": [
+      {
+        "__pickled__": "gAWV5gEAAAAAAACMKmFnZW50X2ZyYW1ld29yay5fd29ya2Zsb3dzLl9ydW5uZXJfY29udGV4dJSMD1dvcmtmbG93TWVzc2FnZZSTlCmBlH2UKIwEZGF0YZSMCF9fbWFpbl9flIwLT3JkZXJSZWNvcmSUk5QpgZR9lCiMCG9yZGVyX2lklIwQT1JELTIwMjYwNTI0LTAwMZSMC2N1c3RvbWVyX2lklIwHU1REXzQ0NZSMBWxpbmVzlF2UKH2UKIwDc2t1lIwIU0tVLTMwNTWUjANxdHmUSwGMDnVuaXRfcHJpY2VfdXNklEdAMoAAAAAAAHV9lChoEowIU0tVLTc0MjGUaBRLAmgVR0BWQAAAAAAAdWWMDHNoaXBfdG9fY2l0eZSMB1NlYXR0bGWUjBFzaGlwX3RvX3dhcmVob3VzZZSMBlNFQS0wMZSMCXRvdGFsX3VzZJRHQGiQAAAAAAB1YowJc291cmNlX2lklIwGaW50YWtllIwJdGFyZ2V0X2lklE6MBHR5cGWUaACMC01lc3NhZ2VUeXBllJOUjAhzdGFuZGFyZJSFlFKUjA50cmFjZV9jb250ZXh0c5ROjA9zb3VyY2Vfc3Bhbl9pZHOUTowbb3JpZ2luYWxfcmVxdWVzdF9pbmZvX2V2ZW50lE51Yi4=",
+        "__type__": "agent_framework._workflows._runner_context:WorkflowMessage"
+      }
+    ]
+  },
+  "state": {
+    "_workflow_run_kwargs": {},
+    "_executor_state": {
+      "intake": {},
+      "stock_check": {},
+      "shipping_quote": {},
+      "allocator": {},
+      "approval": {
+        "pending": null
+      },
+      "dispatch": {},
+      "finance": {}
+    }
+  },
+  "pending_request_info_events": {},
+  "iteration_count": 0,
+  "metadata": {},
+  "version": "1.0"
+}

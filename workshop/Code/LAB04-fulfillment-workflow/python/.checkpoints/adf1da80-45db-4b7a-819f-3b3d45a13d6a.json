@@ -1,0 +1,93 @@
+{
+  "workflow_name": "ZavaFulfillment",
+  "graph_signature_hash": "8f28abf551a5250ae87792edbd61fbd45002ff2196227a0a9eb92fefbba4df43",
+  "checkpoint_id": "adf1da80-45db-4b7a-819f-3b3d45a13d6a",
+  "previous_checkpoint_id": "068f55cc-03a7-4ca1-b3bb-738f4e27ba23",
+  "timestamp": "2026-05-27T03:51:21.821057+00:00",
+  "messages": {
+    "approval": [
+      {
+        "__pickled__": "gAWV5wMAAAAAAACMKmFnZW50X2ZyYW1ld29yay5fd29ya2Zsb3dzLl9ydW5uZXJfY29udGV4dJSMD1dvcmtmbG93TWVzc2FnZZSTlCmBlH2UKIwEZGF0YZSMCF9fbWFpbl9flIwOQWxsb2NhdGlvblBsYW6Uk5QpgZR9lCiMBW9yZGVylGgGjAtPcmRlclJlY29yZJSTlCmBlH2UKIwIb3JkZXJfaWSUjBBPUkQtMjAyNjA1MjQtMDAxlIwLY3VzdG9tZXJfaWSUjAdTVERfNDQ1lIwFbGluZXOUXZQofZQojANza3WUjAhTS1UtMzA1NZSMA3F0eZRLAYwOdW5pdF9wcmljZV91c2SUR0AygAAAAAAAdX2UKGgXjAhTS1UtNzQyMZRoGUsCaBpHQFZAAAAAAAB1ZYwMc2hpcF90b19jaXR5lIwHU2VhdHRsZZSMEXNoaXBfdG9fd2FyZWhvdXNllIwGU0VBLTAxlIwJdG90YWxfdXNklEdAaJAAAAAAAHVijAVzdG9ja5RoBowLU3RvY2tSZXBvcnSUk5QpgZR9lChoEGgRjAl3YXJlaG91c2WUaCBoFF2UKGgGjAlTdG9ja0xpbmWUk5QpgZR9lCiMA3NrdZRoGIwDcXR5lEsBjAdvbl9oYW5klEsOjAlhdmFpbGFibGWUSwiMCnN1ZmZpY2llbnSUiHViaCopgZR9lChoLWgcaC5LAmgvTTgBaDBNCQFoMYh1YmWMDGFsbF9pbl9zdG9ja5SIdWKMB2ZyZWlnaHSUaAaMDEZyZWlnaHRRdW90ZZSTlCmBlH2UKGgQaBGMBGxhbmWUjAtVUy1kb21lc3RpY5SMCHRvdGFsX2tnlEdAIszMzMzMzYwGcXVvdGVzlF2UKGgGjAxDYXJyaWVyUXVvdGWUk5QpgZR9lCiMCmNhcnJpZXJfaWSUjARVU1BTlIwEbmFtZZSMFVVTUFMgR3JvdW5kIEFkdmFudGFnZZSMCXByaWNlX3VzZJRHQDsuFHrhR66MDHRyYW5zaXRfZGF5c5RLBXViaEApgZR9lChoQ4wFRkVERViUaEWMDkZlZEV4IFByaW9yaXR5lGhHR0BLJmZmZmZmaEhLAnViZYwIY2hlYXBlc3SUaEF1YmghR0Br9cKPXCj2dWKMCXNvdXJjZV9pZJSMCGFwcHJvdmFslIwJdGFyZ2V0X2lklE6MBHR5cGWUaACMC01lc3NhZ2VUeXBllJOUjAhzdGFuZGFyZJSFlFKUjA50cmFjZV9jb250ZXh0c5ROjA9zb3VyY2Vfc3Bhbl9pZHOUTowbb3JpZ2luYWxfcmVxdWVzdF9pbmZvX2V2ZW50lE51Yi4=",
+        "__type__": "agent_framework._workflows._runner_context:WorkflowMessage"
+      }
+    ]
+  },
+  "state": {
+    "_workflow_run_kwargs": {},
+    "_executor_state": {
+      "intake": {},
+      "stock_check": {},
+      "shipping_quote": {},
+      "allocator": {},
+      "approval": {
+        "pending": {
+          "order": {
+            "order_id": "ORD-20260524-002",
+            "customer_id": "VIP_003",
+            "lines": [
+              {
+                "sku": "SKU-3055",
+                "qty": 50,
+                "unit_price_usd": 18.5
+              }
+            ],
+            "ship_to_city": "Boston",
+            "ship_to_warehouse": "SEA-01",
+            "total_usd": 1500.0
+          },
+          "stock": {
+            "order_id": "ORD-20260524-002",
+            "warehouse": "SEA-01",
+            "lines": [
+              {
+                "sku": "SKU-3055",
+                "qty": 50,
+                "on_hand": 14,
+                "available": 8,
+                "sufficient": false
+              }
+            ],
+            "all_in_stock": false
+          },
+          "freight": {
+            "order_id": "ORD-20260524-002",
+            "lane": "US-domestic",
+            "total_kg": 240.0,
+            "quotes": [
+              {
+                "carrier_id": "USPS",
+                "name": "USPS Ground Advantage",
+                "price_usd": 534.5,
+                "transit_days": 5
+              },
+              {
+                "carrier_id": "FEDEX",
+                "name": "FedEx Priority",
+                "price_usd": 1092.0,
+                "transit_days": 2
+              }
+            ],
+            "cheapest": {
+              "carrier_id": "USPS",
+              "name": "USPS Ground Advantage",
+              "price_usd": 534.5,
+              "transit_days": 5
+            }
+          },
+          "total_usd": 2034.5
+        }
+      },
+      "dispatch": {},
+      "finance": {}
+    }
+  },
+  "pending_request_info_events": {
+    "c9f0be5f-62d4-40c1-a2a0-e96f0548790a": {
+      "__pickled__": "gAWV2wEAAAAAAACMImFnZW50X2ZyYW1ld29yay5fd29ya2Zsb3dzLl9ldmVudHOUjA1Xb3JrZmxvd0V2ZW50lJOUKYGUfZQojAR0eXBllIwMcmVxdWVzdF9pbmZvlIwEZGF0YZSMCF9fbWFpbl9flIwPQXBwcm92YWxSZXF1ZXN0lJOUKYGUfZQojAhvcmRlcl9pZJSMEE9SRC0yMDI2MDUyNC0wMDKUjAtjdXN0b21lcl9pZJSMB1ZJUF8wMDOUjAl0b3RhbF91c2SUR0CfygAAAAAAjAZyZWFzb26UjA5zdG9ja19zaG9ydGFnZZR1YowGb3JpZ2lulGgAjBNXb3JrZmxvd0V2ZW50U291cmNllJOUjAhFWEVDVVRPUpSFlFKUjAVzdGF0ZZROjAdkZXRhaWxzlE6MC2V4ZWN1dG9yX2lklE6MC19yZXF1ZXN0X2lklIwkYzlmMGJlNWYtNjJkNC00MGMxLWEyYTAtZTk2ZjA1NDg3OTBhlIwTX3NvdXJjZV9leGVjdXRvcl9pZJSMCGFwcHJvdmFslIwNX3JlcXVlc3RfdHlwZZRoCowOX3Jlc3BvbnNlX3R5cGWUaAiMEEFwcHJvdmFsUmVzcG9uc2WUk5SMCWl0ZXJhdGlvbpROdWIu",
+      "__type__": "agent_framework._workflows._events:WorkflowEvent"
+    }
+  },
+  "iteration_count": 3,
+  "metadata": {},
+  "version": "1.0"
+}

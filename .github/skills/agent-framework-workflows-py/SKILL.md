@@ -530,3 +530,48 @@ This unlocks the reflection pattern (Worker ↔ Reviewer loop wrapped as a singl
 | [references/checkpointing.md](references/checkpointing.md) | In-memory / file / Cosmos storage, resume, sub-workflow + HITL checkpoints |
 | [references/orchestrations.md](references/orchestrations.md) | `SequentialBuilder`, `ConcurrentBuilder`, `HandoffBuilder`, `GroupChatBuilder`, `MagenticBuilder` |
 | [references/composition.md](references/composition.md) | `WorkflowExecutor`, sub-workflow request interception, `workflow.as_agent()`, shared sessions, kwargs |
+
+## Workshop-verified gotchas (LAB 04)
+
+These are the seven traps observed while building the ZavaShop fulfillment workflow in [`workshop/LAB04-fulfillment-workflow/fulfillment_workflow.py`](../../../workshop/LAB04-fulfillment-workflow/fulfillment_workflow.py). Every bullet has been reproduced against `agent-framework 1.0.0rc3`.
+
+1. **No `from __future__ import annotations`** in modules that use `@response_handler`. The validator (`_request_info_mixin.py`) inspects the **raw** `WorkflowContext[X, Y]` annotation; with deferred annotations it sees a `str` instead of the resolved generic and raises `Invalid handler signature`. Keep workflow modules annotation-eager.
+2. **`workflow.as_agent()` always dispatches `list[Message]`** to the start executor — it asserts `is_type_compatible(list[Message], start.input_types)`. If your true intake input is `str`, write a class-based `IntakeExecutor(Executor)` with **two** `@handler` methods (`str` *and* `list[Message]`) that share a private `_emit`, so the same node serves both `workflow.run("ORD-…")` and `workflow.as_agent(...).run("ORD-…")`.
+3. **`FileCheckpointStorage` is type-allow-listed.** Every user dataclass must appear in `allowed_checkpoint_types=["__main__:OrderRecord", "fulfillment_workflow:OrderRecord", …]` under **all** module names you ship under (typically `__main__` for the CLI run plus the importable module name when another LAB imports the file). Without this, resume fails with `Checkpoint deserialization blocked for type '…'`. Pattern:
+
+   ```python
+   user_types = ("OrderRecord", "StockReport", "AllocationPlan", ...)
+   allowed = sorted({
+       f"{m}:{t}"
+       for m in (__name__, "__main__", "fulfillment_workflow")
+       for t in user_types
+   })
+   storage = FileCheckpointStorage(storage_path=".checkpoints",
+                                   allowed_checkpoint_types=allowed)
+   ```
+
+4. **Drain the stream after `request_info`.** Checkpoints are flushed at the **end** of each super-step. If you `break` out of `async for event in workflow.run(..., stream=True)` the moment you see `request_info`, the post-super-step checkpoint that carries the pending request is never written, and the subsequent resume raises `No pending requests found in workflow context`. Collect `pending[event.request_id] = event.data` and let the iterator end naturally — the workflow has paused, there is nothing left to do.
+
+5. **A paused workflow instance cannot be re-run.** After pausing on `request_info`, the original `Workflow` still has `_is_running=True`, so calling `workflow.run(...)` on it again raises `Workflow is already running. Concurrent executions are not allowed.`. Build a fresh instance via your `build_workflow()` factory (same checkpoint dir, same allow-list) and call `fresh_wf.run(checkpoint_id=..., responses={req_id: reply})` in **one** call — this single entry point covers both restore and send-responses.
+
+6. **`event.source_executor_id` raises for non-`request_info` events.** It is a property that throws `RuntimeError` for every event type except `"request_info"`. Use `event.executor_id` everywhere; it is always defined when the event has a source.
+
+7. **No `ConcurrentBuilder` for typed executors.** `ConcurrentBuilder` is designed for fanning a `list[ChatMessage]` user prompt out to multiple chat agents and merging back as `list[ChatMessage]`. To fan a typed dataclass (e.g. `OrderRecord`) out to multiple `@executor` functions and merge via `list[LegResult]`, build the DAG explicitly:
+
+   ```python
+   WorkflowBuilder(start_executor=intake,
+                   checkpoint_storage=storage,
+                   name="ZavaFulfillment",
+                   output_from=[finance, approval])
+       .add_fan_out_edges(intake, [stock_check, shipping_quote])
+       .add_fan_in_edges([stock_check, shipping_quote], allocator)
+       .add_edge(allocator, approval)
+       .add_edge(approval, dispatch)
+       .add_edge(dispatch, finance)
+       .build()
+   ```
+
+   `checkpoint_storage=` is a **kwarg** on `WorkflowBuilder` — there is no `.with_checkpoint_storage(...)` method.
+
+Bonus shape rules surfaced by the same LAB: `Message("user", "hello")` iterates the string into per-character `Content` objects — pass `Message("user", ["hello"])`; read text via `m.text`. And `WorkflowEvent.type` is the discriminator (`"executor_invoked"`, `"output"`, `"request_info"`, `"superstep_completed"`), **not** `event.kind`.
+

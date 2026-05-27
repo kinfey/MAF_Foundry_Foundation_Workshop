@@ -1,0 +1,39 @@
+{
+  "workflow_name": "ZavaFulfillment",
+  "graph_signature_hash": "8f28abf551a5250ae87792edbd61fbd45002ff2196227a0a9eb92fefbba4df43",
+  "checkpoint_id": "5ba0b183-5cfc-4cc7-be5d-ec250ebbc9dc",
+  "previous_checkpoint_id": "a7fd03ea-b0bb-4b98-ac4f-a47f12ef3a8c",
+  "timestamp": "2026-05-27T03:51:21.380137+00:00",
+  "messages": {
+    "stock_check": [
+      {
+        "__pickled__": "gAWVlgIAAAAAAACMKmFnZW50X2ZyYW1ld29yay5fd29ya2Zsb3dzLl9ydW5uZXJfY29udGV4dJSMD1dvcmtmbG93TWVzc2FnZZSTlCmBlH2UKIwEZGF0YZSMCF9fbWFpbl9flIwJTGVnUmVzdWx0lJOUKYGUfZQojARraW5klIwFc3RvY2uUjAVvcmRlcpRoBowLT3JkZXJSZWNvcmSUk5QpgZR9lCiMCG9yZGVyX2lklIwQT1JELTIwMjYwNTI0LTAwMpSMC2N1c3RvbWVyX2lklIwHVklQXzAwM5SMBWxpbmVzlF2UfZQojANza3WUjAhTS1UtMzA1NZSMA3F0eZRLMowOdW5pdF9wcmljZV91c2SUR0AygAAAAAAAdWGMDHNoaXBfdG9fY2l0eZSMBkJvc3RvbpSMEXNoaXBfdG9fd2FyZWhvdXNllIwGU0VBLTAxlIwJdG90YWxfdXNklEdAl3AAAAAAAHViaAxoBowLU3RvY2tSZXBvcnSUk5QpgZR9lChoEmgTjAl3YXJlaG91c2WUaCBoFl2UaAaMCVN0b2NrTGluZZSTlCmBlH2UKIwDc2t1lGgajANxdHmUSzKMB29uX2hhbmSUSw6MCWF2YWlsYWJsZZRLCIwKc3VmZmljaWVudJSJdWJhjAxhbGxfaW5fc3RvY2uUiXVijAdmcmVpZ2h0lE51YowJc291cmNlX2lklIwLc3RvY2tfY2hlY2uUjAl0YXJnZXRfaWSUTowEdHlwZZRoAIwLTWVzc2FnZVR5cGWUk5SMCHN0YW5kYXJklIWUUpSMDnRyYWNlX2NvbnRleHRzlE6MD3NvdXJjZV9zcGFuX2lkc5ROjBtvcmlnaW5hbF9yZXF1ZXN0X2luZm9fZXZlbnSUTnViLg==",
+        "__type__": "agent_framework._workflows._runner_context:WorkflowMessage"
+      }
+    ],
+    "shipping_quote": [
+      {
+        "__pickled__": "gAWVFAMAAAAAAACMKmFnZW50X2ZyYW1ld29yay5fd29ya2Zsb3dzLl9ydW5uZXJfY29udGV4dJSMD1dvcmtmbG93TWVzc2FnZZSTlCmBlH2UKIwEZGF0YZSMCF9fbWFpbl9flIwJTGVnUmVzdWx0lJOUKYGUfZQojARraW5klIwHZnJlaWdodJSMBW9yZGVylGgGjAtPcmRlclJlY29yZJSTlCmBlH2UKIwIb3JkZXJfaWSUjBBPUkQtMjAyNjA1MjQtMDAylIwLY3VzdG9tZXJfaWSUjAdWSVBfMDAzlIwFbGluZXOUXZR9lCiMA3NrdZSMCFNLVS0zMDU1lIwDcXR5lEsyjA51bml0X3ByaWNlX3VzZJRHQDKAAAAAAAB1YYwMc2hpcF90b19jaXR5lIwGQm9zdG9ulIwRc2hpcF90b193YXJlaG91c2WUjAZTRUEtMDGUjAl0b3RhbF91c2SUR0CXcAAAAAAAdWKMBXN0b2NrlE5oDGgGjAxGcmVpZ2h0UXVvdGWUk5QpgZR9lChoEmgTjARsYW5llIwLVVMtZG9tZXN0aWOUjAh0b3RhbF9rZ5RHQG4AAAAAAACMBnF1b3Rlc5RdlChoBowMQ2FycmllclF1b3RllJOUKYGUfZQojApjYXJyaWVyX2lklIwEVVNQU5SMBG5hbWWUjBVVU1BTIEdyb3VuZCBBZHZhbnRhZ2WUjAlwcmljZV91c2SUR0CAtAAAAAAAjAx0cmFuc2l0X2RheXOUSwV1YmgtKYGUfZQoaDCMBUZFREVYlGgyjA5GZWRFeCBQcmlvcml0eZRoNEdAkRAAAAAAAGg1SwJ1YmWMCGNoZWFwZXN0lGgudWJ1YowJc291cmNlX2lklIwOc2hpcHBpbmdfcXVvdGWUjAl0YXJnZXRfaWSUTowEdHlwZZRoAIwLTWVzc2FnZVR5cGWUk5SMCHN0YW5kYXJklIWUUpSMDnRyYWNlX2NvbnRleHRzlE6MD3NvdXJjZV9zcGFuX2lkc5ROjBtvcmlnaW5hbF9yZXF1ZXN0X2luZm9fZXZlbnSUTnViLg==",
+        "__type__": "agent_framework._workflows._runner_context:WorkflowMessage"
+      }
+    ]
+  },
+  "state": {
+    "_workflow_run_kwargs": {},
+    "_executor_state": {
+      "intake": {},
+      "stock_check": {},
+      "shipping_quote": {},
+      "allocator": {},
+      "approval": {
+        "pending": null
+      },
+      "dispatch": {},
+      "finance": {}
+    }
+  },
+  "pending_request_info_events": {},
+  "iteration_count": 1,
+  "metadata": {},
+  "version": "1.0"
+}

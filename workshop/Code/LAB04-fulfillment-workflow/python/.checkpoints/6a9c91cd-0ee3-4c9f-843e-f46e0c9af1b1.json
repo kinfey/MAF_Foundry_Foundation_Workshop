@@ -1,0 +1,86 @@
+{
+  "workflow_name": "ZavaFulfillment",
+  "graph_signature_hash": "8f28abf551a5250ae87792edbd61fbd45002ff2196227a0a9eb92fefbba4df43",
+  "checkpoint_id": "6a9c91cd-0ee3-4c9f-843e-f46e0c9af1b1",
+  "previous_checkpoint_id": "86ee65b2-532f-4b68-8dc1-ccbbefeb58fa",
+  "timestamp": "2026-05-27T03:51:21.929194+00:00",
+  "messages": {},
+  "state": {
+    "_workflow_run_kwargs": {},
+    "_executor_state": {
+      "intake": {},
+      "stock_check": {},
+      "shipping_quote": {},
+      "allocator": {},
+      "approval": {
+        "pending": {
+          "order": {
+            "order_id": "ORD-20260524-002",
+            "customer_id": "VIP_003",
+            "lines": [
+              {
+                "sku": "SKU-3055",
+                "qty": 50,
+                "unit_price_usd": 18.5
+              }
+            ],
+            "ship_to_city": "Boston",
+            "ship_to_warehouse": "SEA-01",
+            "total_usd": 1500.0
+          },
+          "stock": {
+            "order_id": "ORD-20260524-002",
+            "warehouse": "SEA-01",
+            "lines": [
+              {
+                "sku": "SKU-3055",
+                "qty": 50,
+                "on_hand": 14,
+                "available": 8,
+                "sufficient": false
+              }
+            ],
+            "all_in_stock": false
+          },
+          "freight": {
+            "order_id": "ORD-20260524-002",
+            "lane": "US-domestic",
+            "total_kg": 240.0,
+            "quotes": [
+              {
+                "carrier_id": "USPS",
+                "name": "USPS Ground Advantage",
+                "price_usd": 534.5,
+                "transit_days": 5
+              },
+              {
+                "carrier_id": "FEDEX",
+                "name": "FedEx Priority",
+                "price_usd": 1092.0,
+                "transit_days": 2
+              }
+            ],
+            "cheapest": {
+              "carrier_id": "USPS",
+              "name": "USPS Ground Advantage",
+              "price_usd": 534.5,
+              "transit_days": 5
+            }
+          },
+          "total_usd": 2034.5
+        }
+      },
+      "dispatch": {},
+      "finance": {}
+    }
+  },
+  "pending_request_info_events": {
+    "c9f0be5f-62d4-40c1-a2a0-e96f0548790a": {
+      "__pickled__": "gAWV2wEAAAAAAACMImFnZW50X2ZyYW1ld29yay5fd29ya2Zsb3dzLl9ldmVudHOUjA1Xb3JrZmxvd0V2ZW50lJOUKYGUfZQojAR0eXBllIwMcmVxdWVzdF9pbmZvlIwEZGF0YZSMCF9fbWFpbl9flIwPQXBwcm92YWxSZXF1ZXN0lJOUKYGUfZQojAhvcmRlcl9pZJSMEE9SRC0yMDI2MDUyNC0wMDKUjAtjdXN0b21lcl9pZJSMB1ZJUF8wMDOUjAl0b3RhbF91c2SUR0CfygAAAAAAjAZyZWFzb26UjA5zdG9ja19zaG9ydGFnZZR1YowGb3JpZ2lulGgAjBNXb3JrZmxvd0V2ZW50U291cmNllJOUjAhFWEVDVVRPUpSFlFKUjAVzdGF0ZZROjAdkZXRhaWxzlE6MC2V4ZWN1dG9yX2lklE6MC19yZXF1ZXN0X2lklIwkYzlmMGJlNWYtNjJkNC00MGMxLWEyYTAtZTk2ZjA1NDg3OTBhlIwTX3NvdXJjZV9leGVjdXRvcl9pZJSMCGFwcHJvdmFslIwNX3JlcXVlc3RfdHlwZZRoCowOX3Jlc3BvbnNlX3R5cGWUaAiMEEFwcHJvdmFsUmVzcG9uc2WUk5SMCWl0ZXJhdGlvbpROdWIu",
+      "__type__": "agent_framework._workflows._events:WorkflowEvent"
+    }
+  },
+  "iteration_count": 5,
+  "metadata": {},
+  "version": "1.0"
+}
