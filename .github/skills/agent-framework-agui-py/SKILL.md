@@ -331,6 +331,30 @@ add_agent_framework_fastapi_endpoint(
 
 The `dependencies=` list accepts any FastAPI `Depends(...)` — OAuth 2.0 (`OAuth2PasswordBearer`), JWT (`python-jose`), Microsoft Entra ID (`azure-identity`), per-IP rate limits, or your own.
 
+### Custom headers / API-key auth on the client
+
+`AGUIChatClient` **does not** accept a `headers=` kwarg (older docs and pseudocode are wrong). To send `X-API-Key` / `Authorization` / etc. on every request, build an `httpx.AsyncClient` with those headers and pass it as `http_client=`:
+
+```python
+import os
+import httpx
+from agent_framework import Agent
+from agent_framework.ag_ui import AGUIChatClient
+
+async def main() -> None:
+    server_url = os.environ.get("AGUI_SERVER_URL", "http://127.0.0.1:5100/")
+    api_key = os.environ["AG_UI_API_KEY"]
+    async with httpx.AsyncClient(headers={"X-API-Key": api_key}, timeout=120.0) as http_client:
+        async with AGUIChatClient(endpoint=server_url, http_client=http_client) as remote:
+            async with Agent(name="smoke", client=remote) as agent:
+                session = agent.create_session()
+                async for chunk in agent.run("hello", stream=True, session=session):
+                    if chunk.text:
+                        print(chunk.text, end="", flush=True)
+```
+
+The client owns the `httpx.AsyncClient` lifecycle (use `async with`), and `AGUIChatClient` reuses the connection pool across every call.
+
 ## GitHub Copilot CLI as the server backbone (`GitHubCopilotAgent`)
 
 When the model behind the AG-UI mount is the local GitHub Copilot CLI rather than an OpenAI / Azure OpenAI client, use `GitHubCopilotAgent` from `agent_framework.github`. Two things are different from the OpenAI flow:
@@ -466,7 +490,7 @@ async def run_scripted_turn(server_url: str, headers: dict[str, str]) -> None:
 | Symbol | Purpose |
 | --- | --- |
 | `add_agent_framework_fastapi_endpoint(app, target, path, *, dependencies=None, ...)` | Mount AG-UI on a FastAPI app; `target` is `Agent`, `Workflow`, `AgentFrameworkAgent`, or `AgentFrameworkWorkflow` |
-| `AGUIChatClient(endpoint=..., headers=None, ...)` | `BaseChatClient` that speaks AG-UI; use as `async with` |
+| `AGUIChatClient(*, endpoint, http_client=None, timeout=60.0, additional_properties=None, middleware=None, function_invocation_configuration=None)` | `BaseChatClient` that speaks AG-UI; use as `async with`. **There is no `headers=` kwarg** — to send `X-API-Key` (or any other custom header) build an `httpx.AsyncClient(headers={...})` and pass it as `http_client=` (see *Custom headers / API-key auth on the client* below). |
 | `AGUIChatClient.get_response(messages, *, stream, tools=None, metadata=None, options=None)` | Send chat to the server; `metadata={"thread_id": ...}` continues a thread |
 | `AgentFrameworkAgent(agent, *, name=None, description=None, state_schema=None, predict_state_config=None, require_confirmation=False, orchestrators=None)` | Wraps an `Agent` for advanced AG-UI features (shared state, predictive updates, custom orchestrators) |
 | `AgentFrameworkWorkflow(workflow=None, *, workflow_factory=None, name=None)` | Wraps a `Workflow`; pass `workflow_factory` for per-thread instances |

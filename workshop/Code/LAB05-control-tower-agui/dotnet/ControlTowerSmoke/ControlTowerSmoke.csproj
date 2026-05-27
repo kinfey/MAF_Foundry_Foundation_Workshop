@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>ZavaShop.LAB05.ControlTowerSmoke</RootNamespace>
+    <AssemblyName>ControlTowerSmoke</AssemblyName>
+    <NoWarn>$(NoWarn);NU1604;NU1902;MAAI001</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Agents.AI" Version="*-*" />
+    <PackageReference Include="Microsoft.Agents.AI.AGUI" Version="*-*" />
+    <PackageReference Include="Microsoft.Extensions.AI" Version="*-*" />
+  </ItemGroup>
+
+</Project>

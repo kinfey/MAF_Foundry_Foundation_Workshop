@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>ZavaShop.LAB05.ControlTower</RootNamespace>
+    <AssemblyName>ControlTower</AssemblyName>
+    <DefineConstants>$(DefineConstants);LAB05_AGUI_HOST</DefineConstants>
+    <NoWarn>$(NoWarn);NU1604;NU1902;MAAI001</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Agents.AI" Version="*-*" />
+    <PackageReference Include="Microsoft.Agents.AI.Foundry" Version="*-*" />
+    <PackageReference Include="Microsoft.Agents.AI.Workflows" Version="*-*" />
+    <PackageReference Include="Microsoft.Agents.AI.Hosting" Version="*-*" />
+    <PackageReference Include="Microsoft.Agents.AI.Hosting.AGUI.AspNetCore" Version="*-*" />
+    <PackageReference Include="Microsoft.Extensions.AI" Version="*-*" />
+    <PackageReference Include="Azure.AI.Projects" Version="*-*" />
+    <PackageReference Include="Azure.Identity" Version="*" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="..\..\data\ZavaData.cs" Link="ZavaData.cs" />
+    <Compile Include="..\..\LAB04-fulfillment-workflow\FulfillmentWorkflow\Program.cs" Link="Lab04Workflow.cs" />
+  </ItemGroup>
+
+</Project>

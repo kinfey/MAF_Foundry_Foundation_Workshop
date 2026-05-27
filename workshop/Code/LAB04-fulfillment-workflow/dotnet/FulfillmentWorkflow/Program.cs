@@ -438,6 +438,10 @@ internal static class WorkflowFactory
 // ───────────────────────────────────────────────────────────────────────────
 // Demo driver
 // ───────────────────────────────────────────────────────────────────────────
+// LAB 5 links this file (with the LAB05_AGUI_HOST constant defined) to reuse
+// the workflow types — but it brings its own ASP.NET Core entry point, so the
+// CLI Main below is gated out for that consumer.
+#if !LAB05_AGUI_HOST
 
 internal static class Program
 {
@@ -660,3 +664,5 @@ internal static class Program
         }
     }
 }
+
+#endif
