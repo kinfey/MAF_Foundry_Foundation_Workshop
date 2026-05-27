@@ -1,4 +1,4 @@
-# Learn Microsoft Agent Framework with Microsoft Foundry step by step — ZavaShop Supply-Chain Workshop
+# Learn Microsoft Agent Framework with Foundry — ZavaShop Supply‑Chain Workshop
 
 > A Chinese edition of every README in this workshop is preserved alongside as `README.zh.md`.
 

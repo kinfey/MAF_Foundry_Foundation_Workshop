@@ -14,8 +14,6 @@ env/
 
 # Environment / secrets
 .env
-.env.*
-!.env.example
 
 # Node (LAB05 frontend)
 node_modules/
