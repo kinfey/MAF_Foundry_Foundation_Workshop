@@ -54,13 +54,13 @@ CTO 给出三条硬要求：
 
 ---
 
-## 对齐 Microsoft Learn
+## Microsoft Learn 参考
 
-- *Agent Framework — Foundry Chat Client*
-- *Foundry Toolbox & MCP*
-- *Agent Skills — SDK abstractions (InlineSkill / ClassSkill / FileSkillsSource)*
-- *Approval & Human-in-the-loop function calls*
-- *Conversation Threads & state*
+- [Agent Framework — Microsoft Foundry provider](https://learn.microsoft.com/en-us/agent-framework/agents/providers/microsoft-foundry)
+- [Foundry Toolbox (preview)](https://learn.microsoft.com/en-us/azure/foundry/agents/how-to/tools/toolbox) + [Connect to MCP servers](https://learn.microsoft.com/en-us/azure/foundry/agents/how-to/tools/model-context-protocol)
+- [Agent Framework — Agent Skills (Inline / Class / File sources)](https://learn.microsoft.com/en-us/agent-framework/agents/skills)
+- [Agent Framework — Tool approval / human-in-the-loop](https://learn.microsoft.com/en-us/agent-framework/agents/tools/tool-approval)
+- [Agent Framework — Conversations & threads](https://learn.microsoft.com/en-us/agent-framework/agents/conversations/index)
 
 > SKILL 内部参考：[references/foundry-toolbox.md](../../.github/skills/agent-framework-azure-ai-py/references/foundry-toolbox.md)、[references/skills.md](../../.github/skills/agent-framework-azure-ai-py/references/skills.md)、[references/threads.md](../../.github/skills/agent-framework-azure-ai-py/references/threads.md)
 

@@ -1,6 +1,6 @@
-# ZavaShop 供应链智能化 Workshop
+# 一步步围绕 Microsoft Foundry 学习 Microsoft Agent Framework — ZavaShop 供应链智能化 Workshop
 
-> 用 **Microsoft Agent Framework + Microsoft Foundry (GPT-5.5)**，由 **GitHub Copilot 内置 SKILL** 协助，从单 Agent 一路构建到多 Agent Workflow + AG-UI 前端的供应链智能体系统。
+> 用 **[Microsoft Agent Framework](https://learn.microsoft.com/en-us/agent-framework/) + [Microsoft Foundry](https://learn.microsoft.com/en-us/azure/foundry/agents/overview)（GPT-5.5）**，由 **GitHub Copilot 内置 SKILL** 协助，从单 Agent 一路构建到多 Agent Workflow + AG-UI 前端的供应链智能体系统。
 
 > **一份故事，两个赛道**。所有 LAB 同时提供 **Python** 与 **.NET（C#）** 两个实现赛道。同一份 fixture、同一套验收标准、同一个 Foundry 模型；可以逐 LAB 切换赛道。
 

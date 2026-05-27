@@ -56,13 +56,12 @@ The control tower binds to the same fixtures the rest of the workshop shares ([`
 
 ---
 
-## Microsoft Learn alignment
+## Microsoft Learn references
 
-- *Agent Framework — AG-UI integration*
-- *Streaming AG-UI events over SSE*
-- *Hybrid client / server tools*
-- *Generative & tool-based UI patterns*
-- *Workflows as AG-UI endpoints*
+- [Agent Framework — AG-UI integration overview (all 7 protocol features)](https://learn.microsoft.com/en-us/agent-framework/integrations/ag-ui)
+- [Agent Framework — Integrations index (UI frameworks)](https://learn.microsoft.com/en-us/agent-framework/integrations/index)
+- [Agent Framework — Workflows overview (wrap a workflow as an AG-UI endpoint)](https://learn.microsoft.com/en-us/agent-framework/workflows/index)
+- [Foundry — Agent development lifecycle (publish & monitor)](https://learn.microsoft.com/en-us/azure/foundry/agents/concepts/development-lifecycle)
 
 > SKILL entry: [`agent-framework-agui-py/SKILL.md`](../../.github/skills/agent-framework-agui-py/SKILL.md)
 

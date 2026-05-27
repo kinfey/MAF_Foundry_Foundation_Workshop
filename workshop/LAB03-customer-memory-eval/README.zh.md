@@ -56,13 +56,13 @@ CTO 直接指定：
 
 ---
 
-## 对齐 Microsoft Learn
+## Microsoft Learn 参考
 
-- *Agent Framework — Context Providers*
-- *Foundry Memory & semantic recall*
-- *Foundry Evals — quality / behaviour / tool-use / safety evaluators*
-- *Red-Teaming with Azure AI Evaluation*
-- *Reflexion-style self-reflection pattern*
+- [Agent Framework — Context providers & memory](https://learn.microsoft.com/en-us/agent-framework/integrations/index#memory-ai-context-providers)
+- [Foundry — Agent development lifecycle（agents playground 中的 memory）](https://learn.microsoft.com/en-us/azure/foundry/agents/concepts/development-lifecycle)
+- [Foundry — Agent evaluators（Relevance / Groundedness / Tool Call Accuracy）](https://learn.microsoft.com/en-us/azure/foundry/concepts/evaluation-evaluators/agent-evaluators)
+- [Foundry — AI Red Teaming Agent（PyRIT + ASR）](https://learn.microsoft.com/en-us/azure/foundry/concepts/ai-red-teaming-agent)
+- [Agent Framework — Conversations & threads](https://learn.microsoft.com/en-us/agent-framework/agents/conversations/index)
 
 > SKILL 内部参考：[references/memory.md](../../.github/skills/agent-framework-azure-ai-py/references/memory.md)、[references/evaluation.md](../../.github/skills/agent-framework-azure-ai-py/references/evaluation.md)
 

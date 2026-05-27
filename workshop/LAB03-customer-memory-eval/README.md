@@ -57,13 +57,13 @@ All three steps load from [`workshop/data/`](../data/README.md):
 
 ---
 
-## Microsoft Learn alignment
+## Microsoft Learn references
 
-- *Agent Framework — Context Providers*
-- *Foundry Memory & semantic recall*
-- *Foundry Evals — quality / behaviour / tool-use / safety evaluators*
-- *Red-Teaming with Azure AI Evaluation*
-- *Reflexion-style self-reflection pattern*
+- [Agent Framework — Context providers & memory](https://learn.microsoft.com/en-us/agent-framework/integrations/index#memory-ai-context-providers)
+- [Foundry — Agent development lifecycle (memory in the agents playground)](https://learn.microsoft.com/en-us/azure/foundry/agents/concepts/development-lifecycle)
+- [Foundry — Agent evaluators (Relevance / Groundedness / Tool Call Accuracy)](https://learn.microsoft.com/en-us/azure/foundry/concepts/evaluation-evaluators/agent-evaluators)
+- [Foundry — AI Red Teaming Agent (PyRIT + ASR)](https://learn.microsoft.com/en-us/azure/foundry/concepts/ai-red-teaming-agent)
+- [Agent Framework — Conversations & threads](https://learn.microsoft.com/en-us/agent-framework/agents/conversations/index)
 
 > SKILL references: [references/memory.md](../../.github/skills/agent-framework-azure-ai-py/references/memory.md), [references/evaluation.md](../../.github/skills/agent-framework-azure-ai-py/references/evaluation.md)
 

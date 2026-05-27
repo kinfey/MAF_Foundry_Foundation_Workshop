@@ -1,8 +1,8 @@
-# ZavaShop Supply-Chain Workshop
+# Learn Microsoft Agent Framework with Microsoft Foundry step by step — ZavaShop Supply-Chain Workshop
 
 > A Chinese edition of every README in this workshop is preserved alongside as `README.zh.md`.
 
-This workshop walks you through the **Microsoft Agent Framework + Microsoft Foundry (gpt-5.5)** stack in **five LABs**, each one delivering a runnable feature on top of a single, continuous story.
+This workshop walks you through the **[Microsoft Agent Framework](https://learn.microsoft.com/en-us/agent-framework/) + [Microsoft Foundry](https://learn.microsoft.com/en-us/azure/foundry/agents/overview) (gpt-5.5)** stack in **five LABs**, each one delivering a runnable feature on top of a single, continuous story.
 
 > **Two implementation tracks share the same story.** Every LAB ships in both **Python** and **.NET (C#)**. Same fixtures, same acceptance criteria, same Foundry model. Pick a track per LAB — you can switch between LABs.
 

@@ -61,14 +61,13 @@ intake ──┬─► stock_check ──┐
 
 ---
 
-## 对齐 Microsoft Learn
+## Microsoft Learn 参考
 
-- *Agent Framework — Workflows: graph & functional authoring*
-- *Executors, Handlers, WorkflowContext*
-- *Orchestration builders (Sequential / Concurrent / Handoff / GroupChat / Magentic)*
-- *Human-in-the-loop with `ctx.request_info`*
-- *Checkpointing & resume*
-- *`workflow.as_agent()` 与子工作流*
+- [Agent Framework — Workflows overview](https://learn.microsoft.com/en-us/agent-framework/workflows/index)
+- [Workflows — Executors](https://learn.microsoft.com/en-us/agent-framework/workflows/executors)
+- [Workflows — Edges（fan-out / fan-in / 条件）](https://learn.microsoft.com/en-us/agent-framework/workflows/edges)
+- [Workflows — WorkflowBuilder & execution（events / streaming / checkpoint / request_info）](https://learn.microsoft.com/en-us/agent-framework/workflows/workflows)
+- [Foundry — Agent development lifecycle](https://learn.microsoft.com/en-us/azure/foundry/agents/concepts/development-lifecycle)
 
 > SKILL 入口：[`agent-framework-workflows-py/SKILL.md`](../../.github/skills/agent-framework-workflows-py/SKILL.md)
 

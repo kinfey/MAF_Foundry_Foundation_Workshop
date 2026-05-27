@@ -60,14 +60,15 @@ By the end of this LAB you will:
 
 ---
 
-## Microsoft Learn alignment
+## Microsoft Learn references
 
 Agent Framework topics involved in this LAB (Copilot already has them offline in the SKILL; the corresponding Learn chapters are listed here for follow-up reading):
 
-- *Agent Framework — Quickstart for Azure AI Foundry Agents*: [learn.microsoft.com/agent-framework/quickstart-azure-ai](https://learn.microsoft.com/agent-framework/)
-- *Function Calling & Tools*
-- *Hosted Tools — Code Interpreter / File Search / Web Search*
-- *Model Context Protocol (MCP) integration*
+- [Agent Framework — overview & quick start](https://learn.microsoft.com/en-us/agent-framework/overview/agent-framework-overview/) · [Agent Framework — tools overview](https://learn.microsoft.com/en-us/agent-framework/agents/tools/index)
+- [Function tools (`AIFunctionFactory.Create` / `@tool`)](https://learn.microsoft.com/en-us/agent-framework/agents/tools/function-tools)
+- [Local MCP tools (`McpClient`, `ListToolsAsync`)](https://learn.microsoft.com/en-us/agent-framework/agents/tools/local-mcp-tools)
+- [Microsoft Foundry provider — hosted agents & threads](https://learn.microsoft.com/en-us/agent-framework/agents/providers/microsoft-foundry)
+- [Foundry agents — Function calling](https://learn.microsoft.com/en-us/azure/foundry/agents/how-to/tools/function-calling) · [Foundry agents — Connect to MCP servers](https://learn.microsoft.com/en-us/azure/foundry/agents/how-to/tools/model-context-protocol)
 
 > SKILL references: [references/tools.md](../../.github/skills/agent-framework-azure-ai-py/references/tools.md), [references/mcp.md](../../.github/skills/agent-framework-azure-ai-py/references/mcp.md), [references/threads.md](../../.github/skills/agent-framework-azure-ai-py/references/threads.md)
 

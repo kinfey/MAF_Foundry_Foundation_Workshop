@@ -55,13 +55,12 @@ Python 赛道在 [§任务清单](#任务清单)；.NET 赛道在 [§.NET 实现
 
 ---
 
-## 对齐 Microsoft Learn
+## Microsoft Learn 参考
 
-- *Agent Framework — AG-UI integration*
-- *Streaming AG-UI events over SSE*
-- *Hybrid client / server tools*
-- *Generative & tool-based UI patterns*
-- *Workflows as AG-UI endpoints*
+- [Agent Framework — AG-UI integration（7 个协议特性）](https://learn.microsoft.com/en-us/agent-framework/integrations/ag-ui)
+- [Agent Framework — Integrations 索引（UI frameworks）](https://learn.microsoft.com/en-us/agent-framework/integrations/index)
+- [Agent Framework — Workflows overview（把 workflow 包成 AG-UI 端点）](https://learn.microsoft.com/en-us/agent-framework/workflows/index)
+- [Foundry — Agent development lifecycle（发布与监控）](https://learn.microsoft.com/en-us/azure/foundry/agents/concepts/development-lifecycle)
 
 > SKILL 入口：[`agent-framework-agui-py/SKILL.md`](../../.github/skills/agent-framework-agui-py/SKILL.md)
 
